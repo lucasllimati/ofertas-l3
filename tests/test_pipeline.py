@@ -70,6 +70,16 @@ def test_failure_in_one_niche_does_not_affect_others(make_ctx, db, config):
     assert status["status"] == "failed"
 
 
+def test_without_shopee_api_candidates_are_skipped_but_active_fails(make_ctx, db):
+    import pytest
+
+    ctx = make_ctx(DAY1)
+    ctx.shopee = None
+    assert ingest(ctx, ctx.config.niche("beauty")) == {"offers": 0}
+    with pytest.raises(RuntimeError, match="Shopee API não configurada"):
+        ingest(ctx, ctx.config.niche("casa"))
+
+
 def test_price_history_is_scd2(make_ctx, db):
     from src.pipeline.transform import update_price_history
 

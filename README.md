@@ -2,6 +2,8 @@
 
 Sistema de afiliados multi-nicho. Todo dia ele coleta ofertas, ranqueia por nicho, gera post com arte e legenda, manda a prévia para você aprovar no Telegram, publica no canal do nicho nos horários certos e mede cliques, pedidos e comissão.
 
+**Guia de configuração completo** (contas, tokens, onde fica cada arquivo, como adicionar nicho): [docs/SETUP.md](docs/SETUP.md).
+
 Arquitetura e modelo de negócio: [ARQUITETURA.md](ARQUITETURA.md). Especificação completa (todas as fases): [prompt-garimpo-engine.md](prompt-garimpo-engine.md).
 
 ## O que já funciona (versão 0.1)

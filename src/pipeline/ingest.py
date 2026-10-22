@@ -21,9 +21,12 @@ def collect(ctx: AppContext, niche: Niche) -> list[tuple[Offer, str]]:
     found: list[tuple[Offer, str]] = []
     shopee_cfg = niche.platforms.shopee
     failures = 0
-    if niche.uses_shopee_api and shopee_cfg:
-        if ctx.shopee is None:
+    if niche.uses_shopee_api and shopee_cfg and ctx.shopee is None:
+        if niche.is_active:
             raise RuntimeError("Shopee API não configurada (SHOPEE_APP_ID/SHOPEE_APP_SECRET)")
+        # Nicho candidate só monitora: sem API ainda, pula em vez de alertar todo dia.
+        log.info("Shopee API não configurada; nicho candidato sem coleta hoje")
+    elif niche.uses_shopee_api and shopee_cfg:
         for keyword in shopee_cfg.keywords:
             try:
                 for offer in ctx.shopee.search(keyword, shopee_cfg.limit_per_keyword):
