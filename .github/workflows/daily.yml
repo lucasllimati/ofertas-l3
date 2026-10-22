@@ -1,0 +1,27 @@
+name: daily
+
+on:
+  schedule:
+    - cron: "7 8 * * *" # 05:07 BRT: coleta, score, conteúdo e prévias para aprovação
+  workflow_dispatch:
+    inputs:
+      run_date:
+        description: "Dia a (re)processar, AAAA-MM-DD (vazio = hoje)"
+        required: false
+        default: ""
+      niche:
+        description: "Só este nicho (vazio = todos)"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  daily:
+    uses: ./.github/workflows/_run.yml
+    with:
+      steps: daily
+      run_date: ${{ inputs.run_date || '' }}
+      niche: ${{ inputs.niche || '' }}
+    secrets: inherit

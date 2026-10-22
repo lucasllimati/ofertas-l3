@@ -1,0 +1,138 @@
+# yaml-language-server: $schema=./niches.schema.json
+# Configuração declarativa de todos os nichos. Nunca coloque segredo aqui:
+# canais referenciam um prefixo (channel_ref / account_ref) e o código monta o nome
+# da variável de ambiente (ex.: TG_CASA -> TG_CASA_CHAT_ID).
+version: 1
+
+global:
+  llm_budget_usd_per_day: 1.00          # teto global somando todos os nichos
+  repost_cooldown_days: 7               # não repetir o mesmo produto no mesmo nicho antes disso
+
+defaults:
+  timezone: America/Sao_Paulo
+  approval: manual                      # manual | auto_above_score
+  auto_approve_min_score: 0.85
+  publish_slots: ["08:07", "12:07", "19:07", "21:07"]   # minutos quebrados: o cron do Actions atrasa
+  exploration_rate: 0.20                # fração do conteúdo diário reservada a produtos fora do topo
+  limits:
+    posts_per_day: { instagram: 3, tiktok: 2, telegram: 8, stories: 5 }
+    llm_budget_usd_per_day: 0.30
+    products_in_store: 60
+    new_content_per_day: 5
+  filters:
+    min_rating: 4.5
+    min_reviews: 100                    # aplicado só quando a fonte informa o número de avaliações
+    min_commission_rate: 0.05
+    blocked_categories: [medicamentos, remédio, armas, arma, adulto, sexshop, réplica, replica]
+  score_weights:
+    acceleration: 0.30                  # vendas 1d e 7d
+    consistency: 0.15                   # vendas 15d e 30d
+    commission: 0.20                    # comissão esperada por venda (preço x taxa)
+    quality: 0.15                       # nota e avaliações
+    my_channel: 0.15                    # comissão por clique no meu canal (após 50 cliques)
+    real_discount: 0.05                 # preço atual vs. mediana de 30 dias
+  coupons:
+    min_discount_pct: 10
+    min_discount_brl: 20
+    min_hours_valid: 6
+  llm:
+    enabled: true                       # sem ANTHROPIC_API_KEY o sistema usa copy de template
+    copy_model: claude-sonnet-5-5       # intermediário: copy
+    review_model: claude-haiku-5-5      # pequeno: revisão/classificação
+
+niches:
+  - id: casa
+    name: Garimpo Casa
+    status: active
+    platforms:
+      shopee:
+        mode: api                       # api | off  (api exige SHOPEE_APP_ID/SHOPEE_APP_SECRET)
+        limit_per_keyword: 30
+        keywords: [organizador cozinha, utensílios cozinha, porta temperos, mop giratório, organizador guarda-roupa, luminária led]
+      mercadolivre: { mode: manual }
+    manual_offers: config/offers/casa.csv   # links colados por você (Shopee, ML, Amazon)
+    filters: { price_min: 10, price_max: 250 }
+    store: { subdomain: casa, brand: config/brands/casa.json }
+    channels:
+      telegram: { channel_ref: TG_CASA, enabled: true }          # @garimpocasa
+      instagram: { account_ref: IG_CASA, enabled: false }        # @garimpo.casa (Fase 4)
+      tiktok: { account_ref: TIKTOK_CASA, enabled: false }       # @garimpo.casa (Fase 4, rascunho)
+    competitors:
+      instagram: []
+    tracking: { sub_id: casa }
+
+  - id: pet
+    name: Garimpo Pet
+    status: active
+    platforms:
+      shopee:
+        mode: api
+        limit_per_keyword: 30
+        keywords: [arranhador gato, cama pet, fonte água gato, coleira peitoral, brinquedo cachorro, tapete higiênico]
+      mercadolivre: { mode: manual }
+    manual_offers: config/offers/pet.csv
+    filters:
+      price_min: 15
+      price_max: 400
+      blocked_categories: [ração terapêutica, vermífugo, antipulgas]   # somados aos defaults
+    store: { subdomain: pet, brand: config/brands/pet.json }
+    channels:
+      telegram: { channel_ref: TG_PET, enabled: true }           # @garimpopet
+      instagram: { account_ref: IG_PET, enabled: false }         # @garimpo.pet
+      tiktok: { account_ref: TIKTOK_PET, enabled: false }        # @garimpo.pet
+    competitors:
+      instagram: []
+    tracking: { sub_id: pet }
+
+  - id: beauty
+    name: Garimpo Beauty
+    status: candidate                   # só monitorado: coleta e score, sem conteúdo
+    platforms:
+      shopee: { mode: api, keywords: [paleta sombra, base líquida, kit pincel maquiagem, skincare, gloss] }
+    tracking: { sub_id: beauty }
+
+  - id: tech
+    name: Garimpo Tech
+    status: candidate
+    platforms:
+      shopee: { mode: api, keywords: [fone bluetooth, carregador turbo, power bank, fita led, smartwatch] }
+    tracking: { sub_id: tech }
+
+  - id: auto
+    name: Garimpo Auto
+    status: candidate
+    platforms:
+      shopee: { mode: api, keywords: [aspirador automotivo, suporte celular carro, câmera de ré, organizador porta-malas] }
+    tracking: { sub_id: auto }
+
+  - id: gamer
+    name: Garimpo Gamer
+    status: candidate
+    platforms:
+      shopee: { mode: api, keywords: [mouse gamer, teclado mecânico, headset gamer, mousepad grande, suporte monitor] }
+    tracking: { sub_id: gamer }
+
+  - id: bebe
+    name: Garimpo Bebê
+    status: candidate
+    platforms:
+      shopee: { mode: api, keywords: [enxoval bebê, organizador fraldas, babador silicone, mordedor] }
+    tracking: { sub_id: bebe }
+
+  - id: fitness
+    name: Garimpo Fit
+    status: candidate
+    platforms:
+      shopee: { mode: api, keywords: [elástico exercício, tapete yoga, halter ajustável, corda pular] }
+    tracking: { sub_id: fitness }
+
+  - id: geral-ml
+    name: Garimpo Diário
+    status: paused
+    platforms:
+      mercadolivre: { mode: manual }
+    manual_offers: config/offers/geral-ml.csv
+    store: { subdomain: ofertas, brand: config/brands/base.json }
+    channels:
+      telegram: { channel_ref: TG_GERAL, enabled: true }         # @garimpodiario
+    tracking: { sub_id: geralml }

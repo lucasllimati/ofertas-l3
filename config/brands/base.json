@@ -1,0 +1,10 @@
+{
+  "name": "Garimpo",
+  "tagline": "achadinhos testados pelo preço",
+  "voice": "Próximo, direto e honesto. Frases curtas. Sem exagero, sem promessa que o produto não cumpre. Fala como um amigo que achou uma boa oferta.",
+  "colors": { "background": "#FFF8EF", "text": "#1E1B18", "muted": "#6B635B", "accent": "#E4572E", "badge_text": "#FFFFFF" },
+  "font_path": null,
+  "font_bold_path": null,
+  "emoji": "✨",
+  "hashtags": ["#achadinhos", "#garimpo"]
+}

@@ -1,0 +1,784 @@
+{
+  "$defs": {
+    "Channels": {
+      "additionalProperties": false,
+      "properties": {
+        "telegram": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TelegramChannel"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "instagram": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SocialChannel"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "tiktok": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SocialChannel"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "title": "Channels",
+      "type": "object"
+    },
+    "Competitors": {
+      "additionalProperties": false,
+      "properties": {
+        "instagram": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Instagram",
+          "type": "array"
+        }
+      },
+      "title": "Competitors",
+      "type": "object"
+    },
+    "Coupons": {
+      "additionalProperties": false,
+      "properties": {
+        "min_discount_pct": {
+          "default": 10,
+          "title": "Min Discount Pct",
+          "type": "number"
+        },
+        "min_discount_brl": {
+          "default": 20,
+          "title": "Min Discount Brl",
+          "type": "number"
+        },
+        "min_hours_valid": {
+          "default": 6,
+          "title": "Min Hours Valid",
+          "type": "number"
+        }
+      },
+      "title": "Coupons",
+      "type": "object"
+    },
+    "Filters": {
+      "additionalProperties": false,
+      "properties": {
+        "min_rating": {
+          "default": 0,
+          "maximum": 5,
+          "minimum": 0,
+          "title": "Min Rating",
+          "type": "number"
+        },
+        "min_reviews": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Min Reviews",
+          "type": "integer"
+        },
+        "min_commission_rate": {
+          "default": 0,
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Min Commission Rate",
+          "type": "number"
+        },
+        "blocked_categories": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Blocked Categories",
+          "type": "array"
+        },
+        "price_min": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Price Min"
+        },
+        "price_max": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Price Max"
+        }
+      },
+      "title": "Filters",
+      "type": "object"
+    },
+    "GlobalSettings": {
+      "additionalProperties": false,
+      "properties": {
+        "llm_budget_usd_per_day": {
+          "default": 1.0,
+          "minimum": 0,
+          "title": "Llm Budget Usd Per Day",
+          "type": "number"
+        },
+        "repost_cooldown_days": {
+          "default": 7,
+          "minimum": 0,
+          "title": "Repost Cooldown Days",
+          "type": "integer"
+        }
+      },
+      "title": "GlobalSettings",
+      "type": "object"
+    },
+    "Limits": {
+      "additionalProperties": false,
+      "properties": {
+        "posts_per_day": {
+          "$ref": "#/$defs/PostsPerDay",
+          "default": {
+            "instagram": 3,
+            "tiktok": 2,
+            "telegram": 8,
+            "stories": 5
+          }
+        },
+        "llm_budget_usd_per_day": {
+          "default": 0.3,
+          "minimum": 0,
+          "title": "Llm Budget Usd Per Day",
+          "type": "number"
+        },
+        "products_in_store": {
+          "default": 60,
+          "minimum": 1,
+          "title": "Products In Store",
+          "type": "integer"
+        },
+        "new_content_per_day": {
+          "default": 5,
+          "minimum": 0,
+          "title": "New Content Per Day",
+          "type": "integer"
+        }
+      },
+      "title": "Limits",
+      "type": "object"
+    },
+    "LlmSettings": {
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "default": true,
+          "title": "Enabled",
+          "type": "boolean"
+        },
+        "copy_model": {
+          "default": "claude-sonnet-5-5",
+          "title": "Copy Model",
+          "type": "string"
+        },
+        "review_model": {
+          "default": "claude-haiku-5-5",
+          "title": "Review Model",
+          "type": "string"
+        }
+      },
+      "title": "LlmSettings",
+      "type": "object"
+    },
+    "ManualPlatform": {
+      "additionalProperties": false,
+      "properties": {
+        "mode": {
+          "default": "manual",
+          "enum": [
+            "manual",
+            "off"
+          ],
+          "title": "Mode",
+          "type": "string"
+        }
+      },
+      "title": "ManualPlatform",
+      "type": "object"
+    },
+    "NicheInput": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "pattern": "^[a-z][a-z0-9-]{1,19}$",
+          "title": "Id",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "candidate",
+            "active",
+            "paused"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "platforms": {
+          "$ref": "#/$defs/Platforms",
+          "default": {
+            "shopee": null,
+            "mercadolivre": null,
+            "amazon": null
+          }
+        },
+        "manual_offers": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Manual Offers"
+        },
+        "store": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Store"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "channels": {
+          "$ref": "#/$defs/Channels",
+          "default": {
+            "telegram": null,
+            "instagram": null,
+            "tiktok": null
+          }
+        },
+        "competitors": {
+          "$ref": "#/$defs/Competitors",
+          "default": {
+            "instagram": []
+          }
+        },
+        "tracking": {
+          "$ref": "#/$defs/Tracking"
+        },
+        "timezone": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Timezone"
+        },
+        "approval": {
+          "anyOf": [
+            {
+              "enum": [
+                "manual",
+                "auto_above_score"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Approval"
+        },
+        "auto_approve_min_score": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Auto Approve Min Score"
+        },
+        "publish_slots": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Publish Slots"
+        },
+        "exploration_rate": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Exploration Rate"
+        },
+        "limits": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Limits"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "filters": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Filters"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "score_weights": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ScoreWeights"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "coupons": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Coupons"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "llm": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LlmSettings"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "status",
+        "tracking"
+      ],
+      "title": "NicheInput",
+      "type": "object"
+    },
+    "NicheSettings": {
+      "additionalProperties": false,
+      "description": "Campos que existem em `defaults` e podem ser sobrescritos por nicho.",
+      "properties": {
+        "timezone": {
+          "default": "America/Sao_Paulo",
+          "title": "Timezone",
+          "type": "string"
+        },
+        "approval": {
+          "default": "manual",
+          "enum": [
+            "manual",
+            "auto_above_score"
+          ],
+          "title": "Approval",
+          "type": "string"
+        },
+        "auto_approve_min_score": {
+          "default": 0.85,
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Auto Approve Min Score",
+          "type": "number"
+        },
+        "publish_slots": {
+          "default": [
+            "08:07",
+            "12:07",
+            "19:07",
+            "21:07"
+          ],
+          "items": {
+            "type": "string"
+          },
+          "title": "Publish Slots",
+          "type": "array"
+        },
+        "exploration_rate": {
+          "default": 0.2,
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Exploration Rate",
+          "type": "number"
+        },
+        "limits": {
+          "$ref": "#/$defs/Limits",
+          "default": {
+            "posts_per_day": {
+              "instagram": 3,
+              "stories": 5,
+              "telegram": 8,
+              "tiktok": 2
+            },
+            "llm_budget_usd_per_day": 0.3,
+            "products_in_store": 60,
+            "new_content_per_day": 5
+          }
+        },
+        "filters": {
+          "$ref": "#/$defs/Filters",
+          "default": {
+            "min_rating": 0.0,
+            "min_reviews": 0,
+            "min_commission_rate": 0.0,
+            "blocked_categories": [],
+            "price_min": null,
+            "price_max": null
+          }
+        },
+        "score_weights": {
+          "$ref": "#/$defs/ScoreWeights",
+          "default": {
+            "acceleration": 0.3,
+            "consistency": 0.15,
+            "commission": 0.2,
+            "quality": 0.15,
+            "my_channel": 0.15,
+            "real_discount": 0.05
+          }
+        },
+        "coupons": {
+          "$ref": "#/$defs/Coupons",
+          "default": {
+            "min_discount_pct": 10.0,
+            "min_discount_brl": 20.0,
+            "min_hours_valid": 6.0
+          }
+        },
+        "llm": {
+          "$ref": "#/$defs/LlmSettings",
+          "default": {
+            "enabled": true,
+            "copy_model": "claude-sonnet-5-5",
+            "review_model": "claude-haiku-5-5"
+          }
+        }
+      },
+      "title": "NicheSettings",
+      "type": "object"
+    },
+    "Platforms": {
+      "additionalProperties": false,
+      "properties": {
+        "shopee": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ShopeePlatform"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "mercadolivre": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ManualPlatform"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "amazon": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ManualPlatform"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "title": "Platforms",
+      "type": "object"
+    },
+    "PostsPerDay": {
+      "additionalProperties": false,
+      "properties": {
+        "instagram": {
+          "default": 3,
+          "minimum": 0,
+          "title": "Instagram",
+          "type": "integer"
+        },
+        "tiktok": {
+          "default": 2,
+          "minimum": 0,
+          "title": "Tiktok",
+          "type": "integer"
+        },
+        "telegram": {
+          "default": 8,
+          "minimum": 0,
+          "title": "Telegram",
+          "type": "integer"
+        },
+        "stories": {
+          "default": 5,
+          "minimum": 0,
+          "title": "Stories",
+          "type": "integer"
+        }
+      },
+      "title": "PostsPerDay",
+      "type": "object"
+    },
+    "ScoreWeights": {
+      "additionalProperties": false,
+      "properties": {
+        "acceleration": {
+          "default": 0.3,
+          "minimum": 0,
+          "title": "Acceleration",
+          "type": "number"
+        },
+        "consistency": {
+          "default": 0.15,
+          "minimum": 0,
+          "title": "Consistency",
+          "type": "number"
+        },
+        "commission": {
+          "default": 0.2,
+          "minimum": 0,
+          "title": "Commission",
+          "type": "number"
+        },
+        "quality": {
+          "default": 0.15,
+          "minimum": 0,
+          "title": "Quality",
+          "type": "number"
+        },
+        "my_channel": {
+          "default": 0.15,
+          "minimum": 0,
+          "title": "My Channel",
+          "type": "number"
+        },
+        "real_discount": {
+          "default": 0.05,
+          "minimum": 0,
+          "title": "Real Discount",
+          "type": "number"
+        }
+      },
+      "title": "ScoreWeights",
+      "type": "object"
+    },
+    "ShopeePlatform": {
+      "additionalProperties": false,
+      "properties": {
+        "mode": {
+          "default": "api",
+          "enum": [
+            "api",
+            "off"
+          ],
+          "title": "Mode",
+          "type": "string"
+        },
+        "keywords": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Keywords",
+          "type": "array"
+        },
+        "limit_per_keyword": {
+          "default": 30,
+          "maximum": 50,
+          "minimum": 1,
+          "title": "Limit Per Keyword",
+          "type": "integer"
+        }
+      },
+      "title": "ShopeePlatform",
+      "type": "object"
+    },
+    "SocialChannel": {
+      "additionalProperties": false,
+      "properties": {
+        "account_ref": {
+          "pattern": "^[A-Z][A-Z0-9_]{1,30}$",
+          "title": "Account Ref",
+          "type": "string"
+        },
+        "enabled": {
+          "default": false,
+          "title": "Enabled",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "account_ref"
+      ],
+      "title": "SocialChannel",
+      "type": "object"
+    },
+    "Store": {
+      "additionalProperties": false,
+      "properties": {
+        "subdomain": {
+          "pattern": "^[a-z0-9-]{2,30}$",
+          "title": "Subdomain",
+          "type": "string"
+        },
+        "brand": {
+          "title": "Brand",
+          "type": "string"
+        }
+      },
+      "required": [
+        "subdomain",
+        "brand"
+      ],
+      "title": "Store",
+      "type": "object"
+    },
+    "TelegramChannel": {
+      "additionalProperties": false,
+      "properties": {
+        "channel_ref": {
+          "pattern": "^[A-Z][A-Z0-9_]{1,30}$",
+          "title": "Channel Ref",
+          "type": "string"
+        },
+        "enabled": {
+          "default": true,
+          "title": "Enabled",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "channel_ref"
+      ],
+      "title": "TelegramChannel",
+      "type": "object"
+    },
+    "Tracking": {
+      "additionalProperties": false,
+      "properties": {
+        "sub_id": {
+          "pattern": "^[a-z0-9]{2,20}$",
+          "title": "Sub Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "sub_id"
+      ],
+      "title": "Tracking",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "version": {
+      "const": 1,
+      "title": "Version",
+      "type": "integer"
+    },
+    "defaults": {
+      "$ref": "#/$defs/NicheSettings"
+    },
+    "niches": {
+      "items": {
+        "$ref": "#/$defs/NicheInput"
+      },
+      "title": "Niches",
+      "type": "array"
+    },
+    "global": {
+      "$ref": "#/$defs/GlobalSettings",
+      "default": null
+    }
+  },
+  "required": [
+    "version",
+    "defaults",
+    "niches"
+  ],
+  "title": "Garimpo niches.yaml",
+  "type": "object"
+}

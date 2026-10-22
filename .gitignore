@@ -1,0 +1,33 @@
+# Segredos: nunca versionar
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+credentials*.json
+service-account*.json
+
+# Saídas e dados locais
+out/
+*.db
+*.sqlite
+*.dump
+*.sql.gz
+dumps/
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.pytest_tmp/
+.ruff_cache/
+
+# Node / Cloudflare
+node_modules/
+.wrangler/
+.dev.vars
+
+# Editor / SO
+.DS_Store
+Thumbs.db
