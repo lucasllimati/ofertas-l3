@@ -74,9 +74,9 @@ O caminho mais rápido para a primeira comissão é **Telegram + links colados �
 1. Crie o repositório **privado** `garimpo-engine` e envie este código.
 2. Em **Settings → Secrets and variables → Actions**, cadastre os segredos de [docs/secrets.md](docs/secrets.md): no mínimo `DATABASE_URL`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_ADMIN_CHAT_ID`, `TELEGRAM_ADMIN_USER_IDS`, `APPROVAL_HMAC_SECRET`, `TG_CASA_CHAT_ID` (`@garimpocasa`) e `TG_PET_CHAT_ID` (`@garimpopet`).
 3. Proteja a `main` (Settings → Branches): PR obrigatório, CI verde, sem force push. Ative 2FA na conta.
-4. Em **Actions**, rode o workflow **healthcheck**. Deve chegar "✅ Garimpo healthcheck ok" no seu Telegram.
-5. Rode **daily** manualmente. As prévias chegam no seu chat. Aprove algumas.
-6. Rode **publish** (ou espere o próximo horário). Os posts aprovados saem nos canais.
+4. Em Actions → **garimpo** → Run workflow, escolha `healthcheck`. Deve chegar "✅ Garimpo healthcheck ok" no seu Telegram.
+5. Rode de novo escolhendo `daily`. As prévias chegam no seu chat. Aprove algumas.
+6. Rode escolhendo `publish` (ou espere o próximo horário). Os posts aprovados saem nos canais.
 
 A partir daí roda sozinho: `daily` às 05:07, `publish` às 08:07, 12:07, 19:07 e 21:07, `report` às 22:37 (horário de Brasília).
 

@@ -173,10 +173,10 @@ Horários em America/Sao_Paulo. O cron do GitHub Actions é em UTC e **pode atra
 
 | Horário | Workflow | O que acontece |
 |---|---|---|
-| 05:07 | `daily.yml` ✅ | Ingestão de todos os nichos → score → conteúdo → arte → prévias no seu Telegram |
+| 05:07 | `garimpo.yml` (daily) ✅ | Ingestão de todos os nichos → score → conteúdo → arte → prévias no seu Telegram |
 | 06:00–07:30 | — | Você aprova no celular |
-| 08:07, 12:07, 19:07, 21:07 | `publish.yml` ✅ | Lê aprovações e publica o que estiver aprovado com horário ≤ agora |
-| 22:37 | `report.yml` ✅ | Cliques (D1), conversões, relatório no Telegram |
+| 08:07, 12:07, 19:07, 21:07 | `garimpo.yml` (publish) ✅ | Lê aprovações e publica o que estiver aprovado com horário ≤ agora |
+| 22:37 | `garimpo.yml` (report) ✅ | Cliques (D1), conversões, relatório no Telegram |
 | Seg 06:17 | `security.yml` ✅ | gitleaks, pip-audit, npm audit, semgrep, inventário de segredos |
 | 09:37, 15:37, 20:37 | `coupons.yml` ⏳ | Caçador de cupons; cupom bom vira prévia com prioridade alta |
 | Dom 10:07 | `market.yml` ⏳ | Analista de mercado + Monitor de concorrentes |

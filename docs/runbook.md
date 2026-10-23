@@ -33,14 +33,14 @@ uv run python -m src.run --steps daily --run-date 2026-10-20 --niche casa
 
 1. Bloco novo em `config/niches.yaml` (comece como `candidate`); se tiver marca, `config/brands/<nicho>.json`.
 2. `uv run python -m src.config.validate --write-schema`.
-3. Para virar `active`: crie o canal, adicione o bot como admin, cadastre o secret `<REF>_CHAT_ID`, inclua a linha `<REF>_CHAT_ID: ${{ secrets.<REF>_CHAT_ID }}` em `.github/workflows/_run.yml` e a entrada em `docs/secrets.md`.
+3. Para virar `active`: crie o canal, adicione o bot como admin, cadastre o secret `<REF>_CHAT_ID`, inclua a linha `<REF>_CHAT_ID: ${{ secrets.<REF>_CHAT_ID }}` no bloco `env` de `.github/workflows/garimpo.yml` e a entrada em `docs/secrets.md`.
 4. PR. O CI valida o YAML, o schema e o inventário de segredos.
 
 ## Rotacionar um segredo
 
 1. Gere o novo valor no provedor (BotFather `/revoke`, painel da Shopee, Console Anthropic, Cloudflare "Roll", senha do usuário no Supabase).
 2. Atualize o secret no GitHub.
-3. Rode o workflow **healthcheck**.
+3. Rode Actions → **garimpo** → Run workflow → `healthcheck`.
 4. Revogue o valor antigo, se o provedor não fez isso.
 5. Atualize "Criado em" / "Expira em" em `docs/secrets.md`.
 

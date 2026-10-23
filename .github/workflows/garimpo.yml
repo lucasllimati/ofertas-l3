@@ -1,32 +1,41 @@
-# Workflow reutilizável: um único job processa todos os nichos em sequência.
-# Ao adicionar um nicho com Telegram, inclua a linha <REF>_CHAT_ID no bloco env abaixo.
-name: _run
+# Execuções do Garimpo. Um único job processa todos os nichos em sequência.
+# Horários em UTC (Brasília = UTC-3). Se mudar publish_slots no config/niches.yaml, mude o cron de publish aqui.
+# Ao ativar um nicho com Telegram, inclua a linha <REF>_CHAT_ID no bloco env do passo "garimpo".
+name: garimpo
 
 on:
-  workflow_call:
+  schedule:
+    - cron: "7 8 * * *" # daily   05:07 BRT: coleta, score, conteúdo e prévias para aprovação
+    - cron: "7 11,15,22 * * *" # publish 08:07, 12:07, 19:07 BRT
+    - cron: "7 0 * * *" # publish 21:07 BRT
+    - cron: "37 1 * * *" # report  22:37 BRT: cliques, conversões e relatório diário
+  workflow_dispatch:
     inputs:
       steps:
-        required: true
-        type: string
+        description: "O que rodar"
+        type: choice
+        options: [healthcheck, daily, publish, report]
+        default: healthcheck
       run_date:
+        description: "Dia a (re)processar, AAAA-MM-DD (vazio = hoje)"
         required: false
-        type: string
         default: ""
       niche:
+        description: "Só este nicho (vazio = todos)"
         required: false
-        type: string
         default: ""
 
 permissions:
   contents: read
 
+concurrency:
+  group: garimpo-db # nunca duas execuções ao mesmo tempo no banco
+  cancel-in-progress: false
+
 jobs:
   run:
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    concurrency:
-      group: garimpo-db # nunca duas execuções ao mesmo tempo no banco
-      cancel-in-progress: false
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -37,7 +46,9 @@ jobs:
       - run: uv sync --frozen --no-dev
       - name: garimpo
         env:
-          STEPS: ${{ inputs.steps }}
+          EVENT: ${{ github.event_name }}
+          SCHEDULE: ${{ github.event.schedule }}
+          INPUT_STEPS: ${{ inputs.steps }}
           RUN_DATE: ${{ inputs.run_date }}
           NICHE: ${{ inputs.niche }}
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
@@ -57,7 +68,17 @@ jobs:
           TG_PET_CHAT_ID: ${{ secrets.TG_PET_CHAT_ID }}
           TG_GERAL_CHAT_ID: ${{ secrets.TG_GERAL_CHAT_ID }}
         run: |
-          args=(--steps "$STEPS")
+          if [ "$EVENT" = "workflow_dispatch" ]; then
+            steps="$INPUT_STEPS"
+          else
+            case "$SCHEDULE" in
+              "7 8 * * *") steps=daily ;;
+              "37 1 * * *") steps=report ;;
+              *) steps=publish ;;
+            esac
+          fi
+          args=(--steps "$steps")
           if [ -n "$RUN_DATE" ]; then args+=(--run-date "$RUN_DATE"); fi
           if [ -n "$NICHE" ]; then args+=(--niche "$NICHE"); fi
+          echo "steps=$steps"
           uv run --no-dev python -m src.run "${args[@]}"

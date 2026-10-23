@@ -3,7 +3,8 @@
 - toda action externa fixada por SHA de 40 caracteres;
 - `permissions` declarado no topo do arquivo;
 - nada de `pull_request_target`;
-- segredo nunca interpolado direto em `run:` (vai por `env:`).
+- segredo nunca interpolado direto em `run:` (vai por `env:`);
+- nada de `secrets: inherit` (cada segredo é passado pelo nome).
 """
 
 from __future__ import annotations
@@ -28,6 +29,8 @@ def check_file(path: Path) -> list[str]:
     if "permissions" not in data:
         problems.append("sem bloco permissions no topo")
     for job_name, job in (data.get("jobs") or {}).items():
+        if job.get("secrets") == "inherit":
+            problems.append(f"job {job_name}: secrets: inherit repassa todos os segredos")
         uses = job.get("uses")
         if uses and not uses.startswith("./") and not SHA_RE.match(uses):
             problems.append(f"job {job_name}: workflow reutilizável sem SHA ({uses})")
