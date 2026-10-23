@@ -18,7 +18,7 @@ Segurança é requisito funcional deste projeto. Achou um problema? Não abra is
 
 ## Regras do repositório
 
-- Repositório privado, 2FA obrigatório, `main` protegida (PR + CI verde, sem force push).
+- Repositório privado e 2FA obrigatório. `main` protegida (PR + checks `python`, `worker` e `scan` verdes, sem force push nem deleção) quando a conta tiver GitHub Pro; no plano Free o GitHub não permite proteção em repositório privado, então a regra é seguida por processo: tudo entra por PR com os 3 checks verdes.
 - `pre-commit install` antes do primeiro commit (gitleaks, ruff, arquivos grandes, chaves privadas).
 - Segredos novos: entrada em [docs/secrets.md](docs/secrets.md) com escopo mínimo e data de expiração. O `security.yml` falha se algum segredo usado não estiver no inventário ou se algum expirar em 7 dias.
 - Rotação a cada 90 dias e procedimento de vazamento: [docs/runbook.md](docs/runbook.md#vazamento-de-chave).
