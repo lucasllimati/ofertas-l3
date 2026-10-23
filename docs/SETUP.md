@@ -25,8 +25,7 @@ Este guia junta tudo o que precisa ser cadastrado, gerado ou editado para o Gari
 | [config/brands/base.json](../config/brands/base.json) | Marca comum (tom de voz, tagline, cores padrão, fontes) | Raramente |
 | `config/offers/<nicho>.csv` | Ofertas coladas à mão (Shopee sem API, Mercado Livre, Amazon) | Sempre que quiser postar um link seu |
 | [config/allowed_domains.json](../config/allowed_domains.json) | Domínios para onde os links podem apontar (pipeline e Worker) | Ao entrar uma loja nova (ex.: Magalu) |
-| [.github/workflows/_run.yml](../.github/workflows/_run.yml) | Quais segredos chegam ao programa no GitHub | Ao criar nicho ativo (linha `TG_<NICHO>_CHAT_ID`) |
-| [.github/workflows/daily.yml](../.github/workflows/daily.yml), [publish.yml](../.github/workflows/publish.yml), [report.yml](../.github/workflows/report.yml) | **Horários** das execuções automáticas (cron em UTC) | Ao mudar `publish_slots` no YAML |
+| [.github/workflows/garimpo.yml](../.github/workflows/garimpo.yml) | **Horários** das execuções automáticas (cron em UTC) e quais segredos chegam ao programa | Ao mudar `publish_slots` no YAML ou criar nicho ativo (linha `TG_<NICHO>_CHAT_ID`) |
 | [docs/secrets.md](secrets.md) | Inventário dos segredos (nomes, escopo, validade) | Ao criar ou rotacionar segredo; o CI confere |
 | [worker/wrangler.toml](../worker/wrangler.toml) | Ids do KV e do D1 do redirecionador `/go` | Uma vez, ao configurar a Cloudflare |
 | [sql/migrations/](../sql/migrations/) | Estrutura do banco | Só ao evoluir o código |
@@ -94,7 +93,7 @@ Gere um valor aleatório na sua máquina:
 python -c "import secrets; print(secrets.token_urlsafe(32))"
 ```
 
-**Testar:** depois de cadastrar tudo (Parte 4), rode o workflow **healthcheck** ou `uv run python -m src.run --steps healthcheck`. Deve chegar "✅ Garimpo healthcheck ok" no seu chat.
+**Testar:** depois de cadastrar tudo (Parte 4), rode Actions → **garimpo** → Run workflow → `healthcheck`, ou `uv run python -m src.run --steps healthcheck`. Deve chegar "✅ Garimpo healthcheck ok" no seu chat.
 
 > O bot **não pode ter webhook configurado** (o sistema lê as respostas por `getUpdates`). Se aparecer erro `Conflict`, veja o [runbook](runbook.md#alertas-e-o-que-fazer).
 
@@ -248,7 +247,7 @@ Registre em [registro.br](https://registro.br) (≈ R$ 40/ano). Só é necessár
 4. **Proteção:** Settings → Branches → Add rule para `main`: exigir PR, exigir status checks (`ci`, `security`), bloquear force push.
 5. **Conta:** Settings (do seu perfil) → Password and authentication → ative 2FA.
 6. **Actions:** aba Actions → habilite os workflows, se pedir.
-7. Rode **healthcheck** (Actions → healthcheck → Run workflow) e depois **daily**.
+7. Rode Actions → **garimpo** → Run workflow → `healthcheck` e depois `daily`.
 
 ---
 
@@ -271,7 +270,7 @@ Registre em [registro.br](https://registro.br) (≈ R$ 40/ano). Só é necessár
 
 ### No GitHub (produção)
 
-Settings → Secrets and variables → Actions → New repository secret. O nome é exatamente o da tabela. Para um segredo chegar ao programa, ele também precisa estar listado em [.github/workflows/_run.yml](../.github/workflows/_run.yml) (os da tabela já estão).
+Settings → Secrets and variables → Actions → New repository secret. O nome é exatamente o da tabela. Para um segredo chegar ao programa, ele também precisa estar listado no bloco `env` de [.github/workflows/garimpo.yml](../.github/workflows/garimpo.yml) (os da tabela já estão). O projeto não usa `secrets: inherit`: cada segredo é passado pelo nome.
 
 ### Na sua máquina (`.env`)
 
@@ -309,20 +308,20 @@ Todos em [config/niches.yaml](../config/niches.yaml), salvo indicação. Depois 
 | Explorar mais produtos novos | `exploration_rate` (0 a 1) | `0.30` |
 | Não repetir produto por mais tempo | `global.repost_cooldown_days` | `14` |
 | Aprovação automática num nicho maduro | `approval: auto_above_score` + `auto_approve_min_score` no nicho | `0.80` |
-| Mudar horários de publicação | `publish_slots` **e** o cron de [publish.yml](../.github/workflows/publish.yml) (ver abaixo) | `["09:07", "18:07"]` |
+| Mudar horários de publicação | `publish_slots` **e** o cron de publish em [.github/workflows/garimpo.yml](../.github/workflows/garimpo.yml) (ver abaixo) | `["09:07", "18:07"]` |
 | Mudar cores/emoji/hashtags | `config/brands/<nicho>.json` | `"accent": "#1F8A7A"` |
 | Permitir links de outra loja | [config/allowed_domains.json](../config/allowed_domains.json) | `"magazineluiza.com.br"` |
 | Pausar um canal na hora | Telegram: `/pausar casa telegram` (volta com `/retomar`) | — |
 | Pausar um nicho de vez | `status: paused` no nicho | — |
 
-**Horários: YAML e cron precisam combinar.** `publish_slots` está no horário de Brasília; o cron do GitHub está em **UTC** (Brasília + 3h). Se trocar os slots para `09:07` e `18:07`, o `publish.yml` fica:
+**Horários: YAML e cron precisam combinar.** `publish_slots` está no horário de Brasília; o cron do GitHub está em **UTC** (Brasília + 3h). Se trocar os slots para `09:07` e `18:07`, as linhas de publish do `garimpo.yml` viram uma só:
 
 ```yaml
 schedule:
   - cron: "7 12,21 * * *"   # 09:07 e 18:07 BRT
 ```
 
-Slot depois das 21:00 BRT cai no dia seguinte em UTC (21:07 BRT = `7 0 * * *`). O `daily` (coleta) deve rodar antes do primeiro slot: hoje é 05:07 BRT (`7 8 * * *` em [daily.yml](../.github/workflows/daily.yml)).
+Slot depois das 21:00 BRT cai no dia seguinte em UTC (21:07 BRT = `7 0 * * *`). O `daily` (coleta) deve rodar antes do primeiro slot: hoje é 05:07 BRT (`7 8 * * *` em [.github/workflows/garimpo.yml](../.github/workflows/garimpo.yml)). Mantenha os crons de daily (`7 8 * * *`) e report (`37 1 * * *`) exatamente assim: o workflow usa o texto do cron para saber o que rodar; qualquer outro cron vira publish.
 
 ---
 
@@ -395,7 +394,7 @@ Candidato precisa da **API da Shopee** (`mode: api`) para ter dados. Sem a crede
 3. **Marca:** crie `config/brands/papelaria.json` (copie `pet.json` e troque nome, cores, emoji e hashtags).
 4. **Ofertas manuais (opcional):** copie `config/offers/casa.csv` para `config/offers/papelaria.csv` e apague as linhas de exemplo.
 5. **Segredo:** no GitHub crie `TG_PAPELARIA_CHAT_ID` = `@garimpopapelaria`.
-6. **Workflow:** em [.github/workflows/_run.yml](../.github/workflows/_run.yml), no bloco `env`, adicione:
+6. **Workflow:** em [.github/workflows/garimpo.yml](../.github/workflows/garimpo.yml), no bloco `env` do passo `garimpo`, adicione:
    ```yaml
           TG_PAPELARIA_CHAT_ID: ${{ secrets.TG_PAPELARIA_CHAT_ID }}
    ```
@@ -407,7 +406,7 @@ Candidato precisa da **API da Shopee** (`mode: api`) para ter dados. Sem a crede
    uv run pytest
    ```
    O teste `test_repo_config_is_valid` lista os nichos ativos esperados: atualize-o para incluir `papelaria`.
-9. **Commit + PR + merge.** Rode **daily** manualmente para ver as primeiras prévias.
+9. **Commit + PR + merge.** Rode Actions → **garimpo** → Run workflow → `daily` para ver as primeiras prévias.
 
 > Minutos do GitHub Actions: cada nicho ativo soma ≈ 30–60 min/mês. Com 2.000 min grátis, cabem com folga 8–10 nichos.
 
@@ -424,7 +423,7 @@ Candidato precisa da **API da Shopee** (`mode: api`) para ter dados. Sem a crede
 | `ANTHROPIC_API_KEY` | Até você revogar | Console → API Keys → criar nova, depois apagar a antiga | GitHub secret + `.env` |
 | `CF_API_TOKEN` | A data que você definiu | Cloudflare → API Tokens → **Roll** | GitHub secret + `.env` |
 
-Depois de trocar: rode o **healthcheck** e atualize as datas em [docs/secrets.md](secrets.md). Rotação recomendada: a cada 90 dias. Vazou alguma? Siga [runbook.md → Vazamento de chave](runbook.md#vazamento-de-chave): **revogue primeiro**, depois troque.
+Depois de trocar: rode Actions → **garimpo** → Run workflow → `healthcheck` e atualize as datas em [docs/secrets.md](secrets.md). Rotação recomendada: a cada 90 dias. Vazou alguma? Siga [runbook.md → Vazamento de chave](runbook.md#vazamento-de-chave): **revogue primeiro**, depois troque.
 
 ---
 
@@ -436,8 +435,8 @@ Depois de trocar: rode o **healthcheck** e atualize as datas em [docs/secrets.md
 - [ ] Shopee: `mode: api` com AppID/Secret **ou** `mode: off` + CSV com ofertas nos nichos ativos
 - [ ] Repositório privado, código na `main`, 2FA e proteção de branch ativos
 - [ ] Segredos obrigatórios cadastrados (Parte 4) e datas em `docs/secrets.md`
-- [ ] Workflow **healthcheck** verde e mensagem recebida no Telegram
-- [ ] Workflow **daily** rodado e prévias aprovadas
-- [ ] Workflow **publish** publicou nos canais
+- [ ] Workflow **garimpo** com `healthcheck` verde e mensagem recebida no Telegram
+- [ ] Workflow **garimpo** com `daily` rodado e prévias aprovadas
+- [ ] Workflow **garimpo** com `publish` publicou nos canais
 - [ ] (Opcional) `ANTHROPIC_API_KEY` com limite de gasto
 - [ ] (Opcional) Worker `/go` publicado e variáveis `CF_*` + `REDIRECT_BASE_URL` cadastradas

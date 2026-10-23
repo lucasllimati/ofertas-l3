@@ -258,7 +258,7 @@ Trate segurança como requisito funcional. Crie `SECURITY.md` com o modelo de am
 
 ```
 garimpo-engine/
-├── .github/workflows/      # _run.yml (reutilizável), ci, security, daily, publish, report, healthcheck; depois market, token-refresh
+├── .github/workflows/      # ci, security, garimpo (daily/publish/report/healthcheck; segredos explícitos, sem secrets: inherit); depois market, token-refresh
 ├── config/
 │   ├── niches.yaml
 │   ├── niches.schema.json  # gerado

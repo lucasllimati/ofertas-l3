@@ -38,6 +38,13 @@ def test_workflow_checker_flags_problems(tmp_path):
         "      - run: echo ${{ secrets.TOKEN }}\n",
         encoding="utf-8",
     )
+    reusable = tmp_path / "reusable.yml"
+    reusable.write_text(
+        "on: push\npermissions: {contents: read}\n"
+        "jobs:\n  x:\n    uses: ./.github/workflows/y.yml\n    secrets: inherit\n",
+        encoding="utf-8",
+    )
+    assert any("inherit" in p for p in check_workflows.check_file(reusable))
     problems = check_workflows.check_file(bad)
     assert any("pull_request_target" in p for p in problems)
     assert any("permissions" in p for p in problems)
