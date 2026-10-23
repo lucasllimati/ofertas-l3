@@ -27,7 +27,8 @@ def test_missing_secrets_fail_fast_with_names_only(monkeypatch, capsys):
 
 def test_demo_end_to_end_two_days(monkeypatch, tmp_path):
     db_path = tmp_path / "demo.db"
-    monkeypatch.setenv("DATABASE_URL", f"sqlite:///{db_path.as_posix()}")
+    monkeypatch.setenv("DEMO_DATABASE_URL", f"sqlite:///{db_path.as_posix()}")
+    monkeypatch.setenv("DATABASE_URL", "postgresql://producao:nao-usar@example.invalid/db")  # a demo deve ignorar
     monkeypatch.setattr("src.run.ROOT", tmp_path)
     assert main(["--demo", "--steps", "all", "--run-date", "2026-10-20"]) == 0
     assert main(["--demo", "--steps", "all", "--run-date", "2026-10-21"]) == 0

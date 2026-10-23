@@ -23,6 +23,7 @@ Arquitetura e modelo de negócio: [ARQUITETURA.md](ARQUITETURA.md). Especificaç
 | Importação de conversões (Shopee API e CSV) e relatório diário no Telegram | ✅ |
 | Comandos `/status`, `/top <nicho>`, `/pausar`, `/retomar` | ✅ |
 | CI, `security.yml`, gitleaks, pip-audit, npm audit, semgrep, Dependabot, RLS no Postgres | ✅ |
+| Trava de produção: só roda commit verde em `ci` e `security` ([SECURITY.md](SECURITY.md#verificação-automática-sempre)) | ✅ |
 | Instagram, TikTok, lojas Astro, Caçador de cupons, Analista de mercado, concorrentes | ⏳ próximas fases ([roadmap](#próximas-fases)) |
 
 ## Teste em 2 minutos (sem nenhuma conta)
@@ -73,12 +74,12 @@ O caminho mais rápido para a primeira comissão é **Telegram + links colados �
 
 1. Crie o repositório **privado** `garimpo-engine` e envie este código.
 2. Em **Settings → Secrets and variables → Actions**, cadastre os segredos de [docs/secrets.md](docs/secrets.md): no mínimo `DATABASE_URL`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_ADMIN_CHAT_ID`, `TELEGRAM_ADMIN_USER_IDS`, `APPROVAL_HMAC_SECRET`, `TG_CASA_CHAT_ID` (`@garimpocasa`) e `TG_PET_CHAT_ID` (`@garimpopet`).
-3. Ative 2FA na conta. Proteção da `main` (PR obrigatório, CI verde, sem force push) em repositório **privado** exige GitHub Pro; veja [docs/SETUP.md §3.8](docs/SETUP.md#38-github-obrigatório).
+3. Ative 2FA na conta. Proteção da `main` (PR obrigatório, CI verde, sem force push) em repositório **privado** exige GitHub Pro; veja [docs/SETUP.md §3](docs/SETUP.md#3-github).
 4. Em Actions → **garimpo** → Run workflow, escolha `healthcheck`. Deve chegar "✅ Garimpo healthcheck ok" no seu Telegram.
 5. Rode de novo escolhendo `daily`. As prévias chegam no seu chat. Aprove algumas.
 6. Rode escolhendo `publish` (ou espere o próximo horário). Os posts aprovados saem nos canais.
 
-A partir daí roda sozinho: `daily` às 05:07, `publish` às 08:07, 12:07, 19:07 e 21:07, `report` às 22:37 (horário de Brasília).
+A partir daí roda sozinho: `daily` às 05:07, `publish` às 08:07, 12:07, 19:07 e 21:07, `report` às 22:37 e `backup` criptografado aos domingos às 03:17 (horário de Brasília). Cadastre o `BACKUP_PASSPHRASE` ([SETUP §12.5](docs/SETUP.md#125-backup-semanal--backup_passphrase)): o Supabase Free não faz backup.
 
 ### 5. Opcional
 

@@ -7,6 +7,7 @@ Sem ANTHROPIC_API_KEY, com orçamento estourado ou com qualquer falha, usa o tem
 from __future__ import annotations
 
 import json
+import re
 import time
 from dataclasses import dataclass
 from typing import Any
@@ -31,6 +32,30 @@ MAX_TOKENS = 2000
 MAX_REVIEW_ROUNDS = 2
 
 
+# Título do produto é escrito pelo vendedor e a saída do LLM pode ser induzida por ele: nada disso
+# pode levar link, @perfil, telefone, preço ou promessa não verificada para o canal.
+URL_RE = re.compile(
+    r"(https?://\S+|www\.\S+|t\.me/\S+"
+    r"|\b[\w-]+(?:\.[\w-]+)*\.(?:com|br|net|org|ly|me|io|co|app|link|shop|store|xyz|site|info|gg|to|ee|la)\b\S*)",
+    re.I,
+)
+HANDLE_RE = re.compile(r"(?<![\w@])@[A-Za-z0-9_]{3,}")
+PHONE_RE = re.compile(r"(?:\+?55\s?)?\(?\b\d{2}\)?[\s.-]?9?\d{4}[\s.-]?\d{4}\b")
+PRICE_RE = re.compile(r"R\$\s?\d[\d.,]*", re.I)
+UNVERIFIED_CLAIM_RE = re.compile(
+    r"\b(frete gr[aá]tis|envio (?:imediato|r[aá]pido|em 24h)|pronta entrega|promo[cç][aã]o|queima de estoque"
+    r"|[uú]ltimas unidades|cupo(?:m|ns)\w*)\b",
+    re.I,
+)
+BRACKETS_RE = re.compile(r"[【】\[\]{}<>]")
+
+
+def clean_text(text: str) -> str:
+    for pattern in (URL_RE, HANDLE_RE, PHONE_RE, PRICE_RE, UNVERIFIED_CLAIM_RE, BRACKETS_RE):
+        text = pattern.sub(" ", text)
+    return " ".join(text.split()).strip(" -|,;:/+")
+
+
 class CopyResult(BaseModel):
     headline: str
     bullets: list[str]
@@ -39,7 +64,7 @@ class CopyResult(BaseModel):
     @field_validator("headline")
     @classmethod
     def _headline(cls, v: str) -> str:
-        v = " ".join(v.split())
+        v = clean_text(v)
         if not v:
             raise ValueError("headline vazia")
         return v[:90]
@@ -47,7 +72,8 @@ class CopyResult(BaseModel):
     @field_validator("bullets")
     @classmethod
     def _bullets(cls, v: list[str]) -> list[str]:
-        v = [" ".join(b.split())[:100] for b in v if b.strip()]
+        v = [clean_text(b)[:100] for b in v]
+        v = [b for b in v if b]
         if not v:
             raise ValueError("sem bullets")
         return v[:3]
@@ -114,6 +140,15 @@ def product_facts(product: dict[str, Any]) -> dict[str, Any]:
     return {k: product[k] for k in keys if product.get(k) not in (None, "")}
 
 
+def sales_claim(sales_total: int | None) -> str | None:
+    """Afirmação de vendas só com número real, arredondado para baixo (nunca exagera)."""
+    if not sales_total or sales_total < 100:
+        return None
+    step = 1000 if sales_total >= 1000 else 100
+    floor = sales_total // step * step
+    return f"Mais de {floor:,}".replace(",", ".") + " vendidos na loja"
+
+
 class TemplateCopywriter:
     def write(self, product: dict[str, Any], niche: Niche, brand: dict[str, Any]) -> tuple[CopyResult, str]:
         emoji = brand.get("emoji", "✨")
@@ -121,8 +156,9 @@ class TemplateCopywriter:
         bullets = []
         if product.get("rating"):
             bullets.append(f"Nota {product['rating']:.1f} de 5 na loja")
-        if product.get("sales_total"):
-            bullets.append("Muito vendido no marketplace")
+        sold = sales_claim(product.get("sales_total"))
+        if sold:
+            bullets.append(sold)
         bullets.append(f"Achado selecionado pelo {brand.get('name', niche.name)}")
         result = CopyResult(headline=f"{emoji} {title}", bullets=bullets, hashtags=[])
         return result, "template"

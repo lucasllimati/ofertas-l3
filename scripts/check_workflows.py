@@ -4,7 +4,8 @@
 - `permissions` declarado no topo do arquivo;
 - nada de `pull_request_target`;
 - segredo nunca interpolado direto em `run:` (vai por `env:`);
-- nada de `secrets: inherit` (cada segredo é passado pelo nome).
+- nada de `secrets: inherit` (cada segredo é passado pelo nome);
+- workflow de produção (garimpo.yml) só roda depois do job `verify` (commit verde em ci e security).
 """
 
 from __future__ import annotations
@@ -17,6 +18,7 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
 SHA_RE = re.compile(r"^[^@\s]+@[0-9a-f]{40}$")
+PRODUCTION_WORKFLOW = "garimpo.yml"
 
 
 def check_file(path: Path) -> list[str]:
@@ -41,6 +43,15 @@ def check_file(path: Path) -> list[str]:
             run = step.get("run") or ""
             if "secrets." in run:
                 problems.append(f"job {job_name}: segredo interpolado em run (use env)")
+    if path.name == PRODUCTION_WORKFLOW:
+        jobs = data.get("jobs") or {}
+        if "verify" not in jobs:
+            problems.append("workflow de produção sem o job verify (trava de ci/security)")
+        for job_name, job in jobs.items():
+            needs = job.get("needs") or []
+            needs = [needs] if isinstance(needs, str) else needs
+            if job_name != "verify" and "verify" not in needs:
+                problems.append(f"job {job_name}: roda em produção sem needs: verify")
     return problems
 
 

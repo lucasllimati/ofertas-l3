@@ -13,6 +13,33 @@ from src.context import AppContext
 from src.sources.fake import FakeShopee
 
 ADMIN_ID = 777
+
+# Suíte de segurança padronizada (`pytest -m security`), rodada pelo security.yml em todo PR, push e semanalmente.
+# Arquivos inteiros + testes de outros arquivos cujo nome indica uma garantia de segurança ou de regra de anúncio.
+SECURITY_FILES = {"test_security.py", "test_hardening.py", "test_logging.py", "test_manual.py"}
+SECURITY_KEYWORDS = (
+    "signature",
+    "unauthorized",
+    "forged",
+    "escape",
+    "compliance",
+    "allowlist",
+    "redact",
+    "secret",
+    "circuit_breaker",
+    "ambiguous",
+    "expire",
+    "discount",
+    "pause",
+)
+
+
+def pytest_collection_modifyitems(items):
+    for item in items:
+        if item.path.name in SECURITY_FILES or any(k in item.name for k in SECURITY_KEYWORDS):
+            item.add_marker(pytest.mark.security)
+
+
 DAY1 = date(2026, 10, 20)
 
 

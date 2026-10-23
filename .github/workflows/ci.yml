@@ -39,9 +39,10 @@ jobs:
       - name: testes (SQLite)
         run: uv run pytest
       - name: testes (Postgres)
-        run: uv run pytest tests/test_pipeline.py tests/test_approval_publish.py tests/test_tracking_report.py tests/test_content.py
+        run: uv run pytest
         env:
           TEST_DATABASE_URL: postgresql://postgres:ci-only-password@localhost:5432/postgres
+          REQUIRE_POSTGRES: "1"
       - name: demo ponta a ponta
         run: uv run python -m src.run --demo --steps all
 

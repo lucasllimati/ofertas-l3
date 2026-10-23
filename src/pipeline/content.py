@@ -50,6 +50,27 @@ def eligible_products(ctx: AppContext, niche: Niche) -> list[dict[str, Any]]:
     )
 
 
+FULL_PRICE_TOLERANCE = 0.98
+FULL_PRICE_LOOKBACK_DAYS = 30
+
+
+def verified_original(ctx: AppContext, product: dict[str, Any]) -> float | None:
+    """Preço "de" só aparece se o sistema viu o produto custando isso nos últimos 30 dias.
+
+    O desconto declarado pelo vendedor não basta: inflar o "de" antes da promoção é o golpe
+    mais comum, e divulgar "de/por" falso é publicidade enganosa (CDC art. 37).
+    """
+    original = product.get("price_original")
+    if not original or original <= product["price"]:
+        return None
+    since = (ctx.run_date - timedelta(days=FULL_PRICE_LOOKBACK_DAYS)).isoformat()
+    highest = ctx.db.scalar(
+        "SELECT max(price) FROM product_daily WHERE product_id = ? AND run_date >= ? AND run_date < ?",
+        (product["id"], since, ctx.run_date.isoformat()),
+    )
+    return original if highest is not None and highest >= original * FULL_PRICE_TOLERANCE else None
+
+
 def affiliate_link(ctx: AppContext, niche: Niche, product: dict[str, Any], content_id: str) -> str:
     """Link com subIds <nicho>, <canal>, <conteúdo>: a Shopee devolve isso no relatório de conversões."""
     is_manual = product.get("affiliate_url") == product.get("product_url")
@@ -90,10 +111,11 @@ def create_content(ctx: AppContext, niche: Niche) -> dict[str, int]:
             tracked = ctx.redirect.register(content_id, link, niche.id, CHANNEL_CODE[CHANNEL])
 
         copy, source = ctx.copywriter.write(product, niche, brand)
+        shown_original = verified_original(ctx, product)
         caption = build_caption(
             copy,
             product["price"],
-            product.get("price_original"),
+            shown_original,
             tracked,
             ctx.run_date,
             brand.get("hashtags", []),
@@ -114,8 +136,8 @@ def create_content(ctx: AppContext, niche: Niche) -> dict[str, int]:
         inserted = ctx.db.execute(
             "INSERT INTO content_item (id, niche_id, product_id, channel, run_date, status, score, "
             "pick_reason, caption, copy_source, affiliate_url, tracked_url, price_at_creation, "
-            "scheduled_for, created_at, updated_at) "
-            "VALUES (?, ?, ?, ?, ?, 'ready', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT DO NOTHING",
+            "price_original_shown, scheduled_for, created_at, updated_at) "
+            "VALUES (?, ?, ?, ?, ?, 'ready', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT DO NOTHING",
             (
                 content_id,
                 niche.id,
@@ -129,6 +151,7 @@ def create_content(ctx: AppContext, niche: Niche) -> dict[str, int]:
                 link,
                 tracked,
                 product["price"],
+                shown_original,
                 iso(scheduled),
                 now,
                 now,

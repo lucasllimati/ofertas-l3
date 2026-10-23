@@ -18,6 +18,8 @@ WIDTH, HEIGHT = 1080, 1350
 MARGIN = 72
 IMAGE_BOX = (MARGIN, 150, WIDTH - MARGIN, 900)
 MAX_IMAGE_BYTES = 5 * 1024 * 1024
+# Foto vem do vendedor: limita pixels para evitar "bomba" de descompressão (Pillow levanta erro acima disso).
+Image.MAX_IMAGE_PIXELS = 40_000_000
 
 FONT_CANDIDATES = {
     True: [
@@ -50,6 +52,8 @@ def fetch_image(url: str | None) -> bytes | None:
     try:
         with httpx.stream("GET", url, timeout=15, follow_redirects=True) as resp:
             if resp.status_code != 200 or not resp.headers.get("content-type", "").startswith("image/"):
+                return None
+            if resp.url.scheme != "https":  # redirecionamento para http não é aceito
                 return None
             data = b""
             for chunk in resp.iter_bytes():
