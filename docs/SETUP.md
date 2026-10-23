@@ -244,7 +244,7 @@ Registre em [registro.br](https://registro.br) (≈ R$ 40/ano). Só é necessár
    ```
    Abra o PR para `main` e faça o merge. Os workflows agendados só rodam a partir da `main`.
 3. **Segredos:** Settings → Secrets and variables → Actions → **New repository secret**, um por variável (lista na Parte 4).
-4. **Proteção:** Settings → Branches → Add rule para `main`: exigir PR, exigir status checks (`ci`, `security`), bloquear force push.
+4. **Proteção da `main`:** em repositório **privado**, o GitHub só libera proteção de branch e rulesets no plano **Pro** (US$ 4/mês); no Free a API responde "Upgrade to GitHub Pro". Com Pro: Settings → Rules → Rulesets → New branch ruleset para a branch padrão, com *Restrict deletions*, *Block force pushes*, *Require a pull request* (0 aprovações, já que você trabalha sozinho) e *Require status checks*: `python`, `worker` e `scan`. **Sem Pro:** trabalhe sempre por PR e só faça merge com os 3 checks verdes; os PRs do Dependabot seguem a mesma regra.
 5. **Conta:** Settings (do seu perfil) → Password and authentication → ative 2FA.
 6. **Actions:** aba Actions → habilite os workflows, se pedir.
 7. Rode Actions → **garimpo** → Run workflow → `healthcheck` e depois `daily`.
