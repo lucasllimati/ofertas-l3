@@ -41,4 +41,5 @@ ignore = [
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-q --basetemp=.pytest_tmp"
+addopts = "-q --basetemp=.pytest_tmp --strict-markers"
+markers = ["security: suíte de segurança e de regras de anúncio (rodada pelo security.yml)"]

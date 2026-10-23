@@ -21,3 +21,4 @@ o `security.yml` avisa 7 dias antes da expiração. Rotação padrão: 90 dias (
 | `CF_KV_NAMESPACE_ID` | Namespace KV `LINKS` do Worker | GitHub Actions secret | Não é credencial | - | - | - |
 | `CF_D1_DATABASE_ID` | Banco D1 `garimpo-clicks` | GitHub Actions secret | Não é credencial | - | - | - |
 | `REDIRECT_BASE_URL` | URL pública do Worker (`https://go.garimpo.com.br`) | GitHub Actions secret | Não é credencial | - | - | - |
+| `BACKUP_PASSPHRASE` | Criptografa o backup semanal (AES-256) | GitHub Actions secret **e** gerenciador de senhas | 32+ caracteres aleatórios; sem ele o backup não roda | - | - | Trocar só vale para backups novos; guarde a antiga enquanto houver backup antigo a restaurar |

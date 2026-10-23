@@ -87,6 +87,7 @@ def per_niche(fn: Callable[[AppContext, Niche], dict], statuses: tuple[str, ...]
 
 def build_steps(args: argparse.Namespace) -> dict[str, Any]:
     from src.approval import process_updates, send_previews
+    from src.backup import export_backup
     from src.pipeline.content import create_content
     from src.pipeline.ingest import ingest, purge_old_snapshots
     from src.pipeline.score import score_niche
@@ -116,6 +117,7 @@ def build_steps(args: argparse.Namespace) -> dict[str, Any]:
         "clicks": sync_clicks,
         "conversions": conversions,
         "report": send_report,
+        "backup": export_backup,
     }
 
 
@@ -189,7 +191,8 @@ def build_context(args: argparse.Namespace, config: AppConfig) -> AppContext:
         from src.sources.fake import FakeShopee
 
         out = ROOT / "out" / "demo"
-        env.setdefault("DATABASE_URL", f"sqlite:///{(out / 'garimpo.db').as_posix()}")
+        # Nunca herda DATABASE_URL: dados falsos da demo não podem cair no banco de produção.
+        env["DATABASE_URL"] = env.get("DEMO_DATABASE_URL") or f"sqlite:///{(out / 'garimpo.db').as_posix()}"
         env.update({"TELEGRAM_ADMIN_CHAT_ID": "admin", "TELEGRAM_ADMIN_USER_IDS": "1", "APPROVAL_HMAC_SECRET": "demo"})
         for n in config.niches:
             if n.channels.telegram:

@@ -14,7 +14,7 @@ run_id_var: contextvars.ContextVar[str] = contextvars.ContextVar("run_id", defau
 correlation_id_var: contextvars.ContextVar[str] = contextvars.ContextVar("correlation_id", default="-")
 niche_id_var: contextvars.ContextVar[str] = contextvars.ContextVar("niche_id", default="-")
 
-SECRET_NAME_RE = re.compile(r"(TOKEN|SECRET|PASSWORD|API_KEY|DATABASE_URL|_KEY$)", re.I)
+SECRET_NAME_RE = re.compile(r"(TOKEN|SECRET|PASSWORD|PASSPHRASE|API_KEY|DATABASE_URL|_KEY$)", re.I)
 SECRET_PATTERNS = [
     re.compile(r"\b\d{6,12}:[A-Za-z0-9_-]{30,}\b"),  # token de bot do Telegram
     re.compile(r"sk-ant-[A-Za-z0-9_-]{10,}"),  # chave da Anthropic

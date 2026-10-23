@@ -6,7 +6,7 @@ import html
 from datetime import timedelta
 from typing import Any
 
-from src.common.util import brl, local_day_bounds_utc
+from src.common.util import brl, iso, local_day_bounds_utc
 from src.context import AppContext
 
 CANCELLED = ("cancelled", "canceled", "cancelado", "invalid")
@@ -105,7 +105,33 @@ def build_report(ctx: AppContext) -> str:
     if failed:
         lines += ["", "<b>⚠️ Falhas hoje</b>"]
         lines += [f"{f['step']} [{f['niche_id']}]: {html.escape((f['detail'] or '')[:120])}" for f in failed]
+    events = security_events(ctx)
+    if events:
+        lines += ["", "<b>🔐 Segurança (24 h)</b>"]
+        lines += [f"{SECURITY_LABELS[action]}: {n}" for action, n in events.items()]
+        lines.append(
+            "<i>Tentativas de terceiros são bloqueadas; muitas seguidas podem indicar que o bot está sendo testado.</i>"
+        )
     return "\n".join(lines)
+
+
+SECURITY_LABELS = {
+    "unauthorized_callback": "Botão tocado por quem não é admin",
+    "invalid_signature": "Botão com assinatura inválida",
+    "unauthorized_command": "Comando de quem não é admin",
+    "update_failed": "Botão/comando que falhou (toque de novo)",
+    "circuit_breaker": "Canal pausado por falhas seguidas",
+}
+
+
+def security_events(ctx: AppContext) -> dict[str, int]:
+    since = iso(ctx.now - timedelta(hours=24))
+    placeholders = ", ".join("?" for _ in SECURITY_LABELS)
+    rows = ctx.db.fetchall(
+        f"SELECT action, count(*) AS n FROM audit_log WHERE ts >= ? AND action IN ({placeholders}) GROUP BY action",
+        (since, *SECURITY_LABELS),
+    )
+    return {r["action"]: int(r["n"]) for r in sorted(rows, key=lambda r: r["action"])}
 
 
 def send_report(ctx: AppContext) -> dict[str, int]:

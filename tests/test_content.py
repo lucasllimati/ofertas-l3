@@ -32,14 +32,18 @@ def test_caption_has_all_compliance_items():
 
 
 def test_caption_escapes_html_from_external_data():
-    copy = CopyResult(headline="<script>x</script>", bullets=["a & b"], hashtags=[])
+    copy = CopyResult(headline='<script>x</script> & "aspas"', bullets=["a & b"], hashtags=[])
     caption = build_caption(copy, 10, None, "https://s.shopee.com.br/x?a=1&b=2", date(2026, 10, 20), [])
-    assert "<script>" not in caption and "&lt;script&gt;" in caption
+    assert "<script>" not in caption and "script" in caption  # sinais < > removidos na limpeza
+    assert "&amp; &quot;aspas&quot;" in caption  # e o resto escapado para o HTML do Telegram
     assert "a=1&amp;b=2" in caption
 
 
 def test_compliance_catches_problems():
-    assert "sem identificação" in compliance_issues("oi 20/10/2026 sujeito a alteração", True)[0]
+    assert "primeira linha" in compliance_issues("oi 20/10/2026 sujeito a alteração", True)[0]
+    # #publi escondido no fim não vale
+    hidden = "oferta\n20/10/2026 sujeito a alteração #publi"
+    assert any("primeira linha" in i for i in compliance_issues(hidden, True))
     assert any("data" in i for i in compliance_issues("#publi", True))
     assert any("link" in i for i in compliance_issues("#publi 20/10/2026 sujeito a alteração", False))
     assert any("proibido" in i for i in compliance_issues("#publi 20/10/2026 sujeito a alteração cura gripe", True))

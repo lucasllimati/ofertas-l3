@@ -81,6 +81,18 @@ describe("handle", () => {
     expect((await call("/go/casa/tg/abc123def0", e, new RateLimiter(), { method: "POST" })).status).toBe(405);
   });
 
+  it("redireciona robôs e HEAD sem contar clique", async () => {
+    const clicks: unknown[][] = [];
+    const e = env({ "go:abc123def0": TARGET }, clicks);
+    const bot = await call("/go/casa/tg/abc123def0", e, new RateLimiter(), {
+      headers: { "User-Agent": "TelegramBot (like TwitterBot)" },
+    });
+    const head = await call("/go/casa/tg/abc123def0", e, new RateLimiter(), { method: "HEAD" });
+    expect(bot.status).toBe(302);
+    expect(head.status).toBe(302);
+    expect(clicks).toHaveLength(0);
+  });
+
   it("aplica rate limit por IP", async () => {
     const limiter = new RateLimiter(2, 60_000);
     const e = env({ "go:abc123def0": TARGET });

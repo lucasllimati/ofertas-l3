@@ -75,7 +75,9 @@ def product_for(ctx: AppContext, product_id: str) -> dict[str, Any]:
 
 def render_for(ctx: AppContext, niche: Niche, item: dict[str, Any]) -> bytes:
     product = product_for(ctx, item["product_id"])
+    # A arte usa exatamente os preços validados da legenda, nunca o "de" bruto do vendedor.
     product["price"] = item["price_at_creation"]
+    product["price_original"] = item.get("price_original_shown")
     image = ctx.image_fetcher(product.get("image_url")) if ctx.image_fetcher else None
     png = render_post(product, load_brand(niche), date.fromisoformat(item["run_date"]), image)
     if ctx.demo:
@@ -198,6 +200,15 @@ def _ack(ctx: AppContext, query: dict[str, Any], result: str) -> None:
         pass
 
 
+def _notify_failure(ctx: AppContext) -> None:
+    try:
+        ctx.telegram.send_message(
+            ctx.admin_chat_id, "⚠️ Não consegui processar um botão ou comando. Se era uma aprovação, toque de novo."
+        )
+    except Exception:
+        log.warning("aviso de falha não enviado")
+
+
 def process_updates(ctx: AppContext) -> dict[str, int]:
     from src.commands import handle_command
 
@@ -209,12 +220,20 @@ def process_updates(ctx: AppContext) -> dict[str, int]:
         if not updates:
             break
         for update in updates:
-            if "callback_query" in update:
-                handle_callback(ctx, update["callback_query"])
-                counts["callbacks"] += 1
-            elif "message" in update:
-                if handle_command(ctx, update["message"]):
-                    counts["commands"] += 1
+            try:
+                if "callback_query" in update:
+                    handle_callback(ctx, update["callback_query"])
+                    counts["callbacks"] += 1
+                elif "message" in update:
+                    if handle_command(ctx, update["message"]):
+                        counts["commands"] += 1
+            except Exception as exc:
+                # Sem isso, uma única atualização com erro travaria a fila para sempre (o offset não
+                # avançaria). O botão continua na mensagem: basta tocar de novo.
+                counts["failed"] = counts.get("failed", 0) + 1
+                log.exception("atualização do Telegram falhou; seguindo para a próxima")
+                audit(ctx, "system", "update_failed", str(update.get("update_id")), {"error": type(exc).__name__})
+                _notify_failure(ctx)
             offset = int(update["update_id"]) + 1
             ctx.db.execute(
                 "INSERT INTO kv_state (key, value, updated_at) VALUES (?, ?, ?) "

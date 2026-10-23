@@ -56,7 +56,29 @@ uv run python -m src.run --steps daily --run-date 2026-10-20 --niche casa
 | `todas as palavras-chave da Shopee falharam` | Credencial da Shopee inválida/expirada, limite de chamadas ou API fora. Rode o healthcheck; se for credencial, rotacione. |
 | `ofertas inválidas: verifique a fonte` | Mais da metade das ofertas veio quebrada. Provável mudança de campo na API: confira no explorador GraphQL e ajuste `src/sources/shopee.py`. |
 | `orçamento diário de LLM atingido` | Normal em dia de muito conteúdo; a copy cai para template. Aumente o teto no YAML se valer a pena. |
+| `Não consegui processar um botão ou comando` | Uma atualização do Telegram deu erro (a fila seguiu). Toque de novo no botão; se repetir, veja o log do passo `approvals`. |
+| `BACKUP_PASSPHRASE não configurado` | Cadastre o secret (SETUP §12.5). O backup não roda sem ele, de propósito. |
+| Bloco "🔐 Segurança" no relatório | Alguém que não é você tocou em botões ou mandou comandos. É bloqueado; se for frequente, confira se o token do bot vazou (`/revoke` no BotFather). |
 | `getUpdates ... Conflict` | Existe um webhook configurado no bot. `https://api.telegram.org/bot<TOKEN>/deleteWebhook` (no navegador, sem compartilhar a URL). |
+
+## Restaurar backup
+
+Os backups semanais ficam em Actions → **garimpo** → execução de domingo (ou a que você rodou com `backup`) → **Artifacts** → `backup-<número>`. Ficam 90 dias.
+
+1. Baixe e descompacte o artefato: sai `garimpo-AAAA-MM-DD.jsonl.gz.gpg`.
+2. Descriptografe (pede a `BACKUP_PASSPHRASE` do gerenciador de senhas):
+   ```bash
+   gpg --decrypt garimpo-AAAA-MM-DD.jsonl.gz.gpg > garimpo-AAAA-MM-DD.jsonl.gz
+   ```
+   No Windows, o `gpg` vem com o Git Bash.
+3. Restaure com o usuário **dono** do banco (num projeto novo, ou no mesmo; linhas existentes não são sobrescritas):
+   ```bash
+   DATABASE_URL="<url do dono>" uv run python scripts/restore_backup.py garimpo-AAAA-MM-DD.jsonl.gz
+   ```
+   O script cria as tabelas se faltarem, aceita só tabelas e colunas conhecidas e mostra quantas linhas restaurou.
+4. Apague os arquivos descriptografados do computador ao terminar.
+
+Os snapshots brutos da Shopee não entram no backup: são grandes e são coletados de novo no próximo `daily`.
 
 ## Supabase pausou o projeto
 

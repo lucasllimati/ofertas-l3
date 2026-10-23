@@ -52,6 +52,15 @@ def test_workflow_checker_flags_problems(tmp_path):
     assert any("interpolado" in p for p in problems)
 
 
+def test_production_workflow_requires_verify_gate(tmp_path):
+    gated = (ROOT / ".github" / "workflows" / "garimpo.yml").read_text(encoding="utf-8")
+    ungated = gated.replace("    needs: verify\n", "")
+    assert ungated != gated
+    path = tmp_path / "garimpo.yml"
+    path.write_text(ungated, encoding="utf-8")
+    assert any("needs: verify" in p for p in check_workflows.check_file(path))
+
+
 def test_secrets_inventory_covers_everything_used():
     assert check_secrets_inventory.used() <= check_secrets_inventory.inventory().keys()
 

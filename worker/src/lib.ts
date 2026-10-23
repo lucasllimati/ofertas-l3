@@ -80,6 +80,9 @@ export interface Env {
   CLICKS: D1Like;
 }
 
+export const BOT_UA =
+  /bot|crawl|spider|slurp|preview|facebookexternalhit|whatsapp|telegram|discord|slack|curl|wget|python-requests|httpx|headless/i;
+
 const SECURITY_HEADERS = {
   "X-Content-Type-Options": "nosniff",
   "Referrer-Policy": "no-referrer",
@@ -110,6 +113,11 @@ export async function handle(
   // O destino precisa existir no KV, bater com o nicho da URL e estar na allowlist.
   if (!target || target.niche !== go.niche || !isAllowedDestination(target.url)) return text(404, "not found");
 
+  // Só conta clique de pessoa: HEAD, robôs e geradores de prévia inflariam o EPC e distorceriam o score.
+  // O user-agent é lido só aqui, em memória; nunca é gravado.
+  if (request.method !== "GET" || BOT_UA.test(request.headers.get("User-Agent") ?? "")) {
+    return redirect(target.url);
+  }
   const country = request.headers.get("CF-IPCountry");
   waitUntil(
     env.CLICKS.prepare("INSERT INTO clicks (ts, niche, channel, content_id, country) VALUES (?, ?, ?, ?, ?)")
@@ -117,5 +125,9 @@ export async function handle(
       .run()
       .catch(() => undefined),
   );
-  return new Response(null, { status: 302, headers: { Location: target.url, ...SECURITY_HEADERS } });
+  return redirect(target.url);
+}
+
+function redirect(location: string): Response {
+  return new Response(null, { status: 302, headers: { Location: location, ...SECURITY_HEADERS } });
 }

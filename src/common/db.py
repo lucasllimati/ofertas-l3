@@ -22,6 +22,19 @@ MIGRATIONS_DIR = ROOT / "sql" / "migrations"
 PG_SCHEMA = "garimpo"
 
 
+LOCAL_HOSTS = {"localhost", "127.0.0.1", "::1", ""}
+
+
+def tls_options(url: str) -> dict[str, str]:
+    """Fora da máquina local, exige TLS. O padrão do libpq (sslmode=prefer) aceita cair para texto puro."""
+    from psycopg.conninfo import conninfo_to_dict
+
+    info = conninfo_to_dict(url)
+    if "sslmode" in info or str(info.get("host", "")) in LOCAL_HOSTS:
+        return {}
+    return {"sslmode": "require"}
+
+
 class Database:
     def __init__(self, url: str):
         self.url = url
@@ -40,7 +53,9 @@ class Database:
             from psycopg.rows import dict_row
 
             self.dialect = "postgres"
-            self._conn = psycopg.connect(url, autocommit=True, row_factory=dict_row, connect_timeout=15)
+            self._conn = psycopg.connect(
+                url, autocommit=True, row_factory=dict_row, connect_timeout=15, **tls_options(url)
+            )
             # Tabelas ficam no schema `garimpo`, fora do schema `public` exposto pela API do Supabase.
             self._conn.execute(f"SET search_path TO {PG_SCHEMA}, public")
         else:
