@@ -2,8 +2,26 @@
 
 > Repositório: **`garimpo-engine`** (privado) · Marca: **Garimpo**
 
-> Cole este prompt inteiro no Claude Code, dentro de uma pasta vazia que vai virar o repositório.
+> Cole este prompt inteiro no Claude Code, na raiz do repositório.
 > Ele constrói o projeto **por fases** e para para sua revisão ao final de cada uma.
+
+## Estado atual (leia antes de tudo)
+
+A **versão 0.1 já está implementada e testada** neste repositório: fundação e segurança, dados
+(Shopee API + CSV manual, bronze/silver/gold, score), conteúdo (copy template/Claude, arte, regras de
+conformidade), aprovação no Telegram, publicação no Telegram, rastreio (`subIds`, Worker `/go`, D1),
+conversões e relatório diário. Veja `README.md`, `ARQUITETURA.md` e as decisões em `docs/adr/`.
+
+Ao continuar, **não reescreva o que existe**: leia o código, rode `uv run pytest` e
+`uv run python -m src.run --demo --steps all`, e siga a partir da próxima fase pendente em
+"Fases e critérios de aceite". Decisões já tomadas que divergem do texto original:
+
+- Arte do feed com Pillow, não Playwright (ADR 0003). Playwright/FFmpeg só para story e vídeo.
+- Aprovação lida por `getUpdates` no início de cada execução (ADR 0002). Webhook no Worker é fase futura.
+- Pipeline em passos determinísticos (`src/run.py`) sobre `content_item`; a fila `agent_event` entra
+  quando houver agentes assíncronos de verdade (cupons, mercado, concorrentes).
+- SQL portátil Postgres/SQLite com datas em TEXT; schema `garimpo` no Postgres (ADR 0004).
+- Cliques no D1, mapa de links no KV (ADR 0005).
 
 ---
 
@@ -43,9 +61,9 @@ Trabalhe em fases, com commits pequenos, testes e documentação. **Pare ao fina
 | Orquestração | GitHub Actions (cron + `workflow_dispatch` com inputs `run_date` e `niche`) |
 | Fila de eventos | Tabela `agent_event` no Postgres com `FOR UPDATE SKIP LOCKED` |
 | Lojas | Um projeto Astro; um build e um projeto Cloudflare Pages por nicho (subdomínio `<nicho>.garimpo.com.br`, domínio a confirmar) |
-| Redirecionador e webhook | Um Cloudflare Worker para todos os nichos |
+| Redirecionador e webhook | Um Cloudflare Worker para todos os nichos (mapa de links no KV, cliques no D1: o KV grátis só aceita 1 mil escritas/dia) |
 | Mídia | Cloudflare R2, prefixo por nicho |
-| Imagem / vídeo | Template HTML/CSS + Playwright; FFmpeg |
+| Imagem / vídeo | Pillow para a arte do feed (implementado); template HTML/CSS + Playwright e FFmpeg para story e vídeo |
 | LLM | SDK da Anthropic; modelo pequeno para classificação e validação, intermediário para copy e análise |
 | Configuração | `config/niches.yaml` validado por Pydantic + JSON Schema gerado |
 
@@ -93,134 +111,21 @@ Todo comportamento específico de nicho vem de `config/niches.yaml`. O código n
 - Status do nicho: `candidate` (só monitora, sem loja nem posts), `active`, `paused`.
 - Gere `config/niches.schema.json` a partir do modelo Pydantic para validação no editor.
 
-**Exemplo inicial (crie `config/niches.yaml` com isto e ajuste depois)**
+**Arquivo real:** `config/niches.yaml` (já existe; é a fonte da verdade, não duplique aqui). Campos além do esboço original:
 
-```yaml
-version: 1
-
-defaults:
-  timezone: America/Sao_Paulo
-  approval: manual              # manual | auto_above_score
-  auto_approve_min_score: 0.85
-  publish_slots: ["08:00", "12:00", "19:00", "21:00"]
-  limits:
-    posts_per_day: { instagram: 3, tiktok: 2, telegram: 8, stories: 5 }
-    llm_budget_usd_per_day: 0.30
-    products_in_store: 60
-    new_content_per_day: 5
-  filters:
-    min_rating: 4.5
-    min_reviews: 100
-    min_commission_rate: 0.05
-    blocked_categories: [medicamentos, armas, adulto, replicas]
-  score_weights:
-    acceleration: 0.30      # vendas 1d e 7d
-    consistency: 0.15       # vendas 15d e 30d
-    commission: 0.20
-    quality: 0.15
-    my_channel: 0.15        # CTR e conversão no meu canal (após 50 cliques)
-    real_discount: 0.05
-  coupons:
-    min_discount_pct: 10
-    min_discount_brl: 20
-    min_hours_valid: 6
-
-niches:
-  - id: casa
-    name: Garimpo Casa
-    status: active
-    platforms:
-      shopee:
-        keywords: [organizador cozinha, utensílios cozinha, porta temperos, mop giratório, organizador guarda-roupa, luminária led]
-      mercadolivre: { mode: manual }
-    filters: { price_min: 10, price_max: 250 }
-    store: { subdomain: casa, brand: config/brands/casa.json }
-    channels:
-      instagram: { account_ref: IG_CASA }        # @garimpo.casa
-      tiktok: { account_ref: TIKTOK_CASA }       # @garimpo.casa
-      telegram: { channel_ref: TG_CASA }         # @garimpocasa
-    competitors:
-      instagram: []                              # perfis profissionais a monitorar
-    tracking: { sub_id: casa }
-
-  - id: pet
-    name: Garimpo Pet
-    status: active
-    platforms:
-      shopee:
-        keywords: [arranhador gato, cama pet, fonte água gato, coleira peitoral, brinquedo cachorro, tapete higiênico]
-      mercadolivre: { mode: manual }
-    filters:
-      price_min: 15
-      price_max: 400
-      blocked_categories: [medicamentos, ração terapêutica]
-    store: { subdomain: pet, brand: config/brands/pet.json }
-    channels:
-      instagram: { account_ref: IG_PET }         # @garimpo.pet
-      tiktok: { account_ref: TIKTOK_PET }        # @garimpo.pet
-      telegram: { channel_ref: TG_PET }          # @garimpopet
-    competitors:
-      instagram: []
-    tracking: { sub_id: pet }
-
-  - id: beauty
-    name: Garimpo Beauty
-    status: candidate                            # só monitorado pelo Analista de mercado
-    platforms:
-      shopee: { keywords: [paleta sombra, base líquida, kit pincel maquiagem, skincare, gloss] }
-    tracking: { sub_id: beauty }
-
-  - id: tech
-    name: Garimpo Tech
-    status: candidate
-    platforms:
-      shopee: { keywords: [fone bluetooth, carregador turbo, power bank, fita led, smartwatch] }
-    tracking: { sub_id: tech }
-
-  - id: auto
-    name: Garimpo Auto
-    status: candidate
-    platforms:
-      shopee: { keywords: [aspirador automotivo, suporte celular carro, câmera de ré, organizador porta-malas] }
-    tracking: { sub_id: auto }
-
-  - id: gamer
-    name: Garimpo Gamer
-    status: candidate
-    platforms:
-      shopee: { keywords: [mouse gamer, teclado mecânico, headset gamer, mousepad grande, suporte monitor] }
-    tracking: { sub_id: gamer }
-
-  - id: bebe
-    name: Garimpo Bebê
-    status: candidate
-    platforms:
-      shopee: { keywords: [enxoval bebê, organizador fraldas, babador silicone, mordedor] }
-    filters: { blocked_categories: [medicamentos] }
-    tracking: { sub_id: bebe }
-
-  - id: fitness
-    name: Garimpo Fit
-    status: candidate
-    platforms:
-      shopee: { keywords: [elástico exercício, tapete yoga, halter ajustável, corda pular] }
-    tracking: { sub_id: fitness }
-
-  - id: geral-ml
-    name: Garimpo Diário
-    status: paused
-    platforms:
-      mercadolivre: { mode: manual }
-    store: { subdomain: ofertas, brand: config/brands/base.json }
-    channels:
-      telegram: { channel_ref: TG_GERAL }        # @garimpodiario
-    tracking: { sub_id: geral-ml }
-```
+- `global`: teto global de LLM por dia e `repost_cooldown_days`.
+- `defaults.exploration_rate` (0.20): fração do conteúdo diário reservada a produtos fora do topo (ε-greedy).
+- `defaults.llm`: `copy_model` (Sonnet) e `review_model` (Haiku).
+- `platforms.shopee.mode`: `api` | `off`; `manual_offers`: CSV com links colados (Shopee, ML, Amazon).
+- Canais com `enabled`; Instagram e TikTok ficam `enabled: false` até existir publicador (o validador recusa).
+- `tracking.sub_id` só com `[a-z0-9]` (vai como subId da Shopee): o nicho `geral-ml` usa `geralml`.
+- `filters.blocked_categories` do nicho **soma** às dos defaults; as outras listas substituem.
+- `publish_slots` em minutos quebrados (`08:07`, `12:07`...): o cron do Actions atrasa.
 
 **Como o multi-nicho se reflete no sistema**
 
 - Todas as tabelas de negócio têm `niche_id`. Um produto pode pertencer a mais de um nicho (`product_niche`), com score separado em cada um.
-- `sub_id` de rastreio = `<niche>-<canal>` (ex.: `pet-ig`), para atribuir conversão por nicho e canal.
+- Rastreio: o link da Shopee leva os `subIds` `[<sub_id do nicho>, <canal>, <content_id>]` (ex.: `pet`, `tg`, `ab12cd34ef`). A conversão é atribuída ao **post**, não só ao canal. Códigos de canal: `tg`, `ig`, `tt`.
 - Um único bot do Telegram administra todos os canais; as prévias de aprovação chegam num chat privado com o nicho no título.
 - Um único app na Meta e um no TikTok autorizam várias contas; cada conta tem seu token, referenciado pelo `account_ref`.
 - Falha em um nicho não interrompe os outros: cada nicho roda isolado em `try/except`, com status próprio em `pipeline_run`.
@@ -232,7 +137,9 @@ niches:
 - `raw_offer_snapshot` (bronze): `run_date`, `platform`, `item_id`, `payload jsonb`. PK (`run_date`, `platform`, `item_id`). Retenção de 60 dias.
 - `product`, `product_niche`, `product_variant` (`attrs jsonb`, `affiliate_url`, `is_separate_listing`), `product_daily`, `price_history` (SCD2), `coupon` (`source`, `code`, `discount`, `min_purchase`, `valid_until`, `scope`, `niche_ids`).
 - `product_score` (gold, por nicho), `seed_keyword` (por nicho), `niche_opportunity` (saída do Analista de mercado).
-- `click_event` (sem IP), `conversion`, `content_item` (`niche_id`, `channel`, `status`, `external_id`), `experiment`.
+- `raw_offer_niche` (de qual nicho/palavra-chave veio cada oferta do dia).
+- `click_event` (sem IP; copiado do D1), `conversion`, `content_item` (`niche_id`, `channel`, `status`, `external_id`, `scheduled_for`, `media_file_id`), `experiment`.
+- `channel_state` (pausa e circuit breaker por nicho e canal), `kv_state` (offset do Telegram, marca d'água dos cliques).
 - `agent_event`, `agent_run` (tokens, custo US$, latência, `niche_id`), `pipeline_run`, `audit_log` (ações administrativas: aprovações, pausas, mudanças de config).
 
 Vendas por janela = `sales_total` de hoje − `sales_total` de N dias atrás.
@@ -289,7 +196,7 @@ Trate segurança como requisito funcional. Crie `SECURITY.md` com o modelo de am
 | Tokens de Instagram, TikTok, Telegram, Shopee, Cloudflare, banco, LLM | Vazamento em commit, log, build do site ou prompt | Secrets só no GitHub/Cloudflare, `gitleaks`, redação de segredos no logger, nada de segredo no build do site |
 | Contas de afiliado e redes | Suspensão por violar termos | Somente API oficial, limites de postagem, circuit breaker |
 | Redirecionador `/go` | Open redirect usado para phishing | Redirecionar só para URLs do KV e de domínios em allowlist (shopee, mercadolivre, amazon e seus encurtadores oficiais) |
-| Webhook do bot | Alguém aprovar posts ou disparar comandos | Validar `X-Telegram-Bot-Api-Secret-Token`, allowlist de `chat_id`/`user_id`, registrar em `audit_log` |
+| Aprovação e comandos do bot | Alguém aprovar posts ou disparar comandos | Hoje (polling): `callback_data` assinado com HMAC, allowlist de `user_id`, comandos só no chat de admin, expiração em 72 h, `audit_log`. Com webhook (futuro): também `X-Telegram-Bot-Api-Secret-Token` e papel `app_webhook` que só insere em aprovação e `audit_log` |
 | Banco | Acesso indevido, SQL injection, perda de dados | Papéis separados, queries parametrizadas, RLS, backup |
 | Agentes com LLM | Prompt injection vindo de títulos, avaliações, posts de concorrentes e e-mails | Conteúdo externo tratado como dado; agentes de LLM sem ferramentas de escrita; saída validada por schema; publicação só pelo Publicador determinístico |
 | Pipeline de CI | Supply chain, action comprometida | Actions fixadas por SHA, `permissions` mínimas, Dependabot, lockfile com hashes |
@@ -312,7 +219,7 @@ Trate segurança como requisito funcional. Crie `SECURITY.md` com o modelo de am
 
 **Banco de dados**
 
-- Papéis: `app_writer` (pipeline), `app_reader` (comando `/pergunta`, só views permitidas, `statement_timeout` de 5 s, sem acesso a `audit_log` e tabelas de configuração sensível), `migrator` (só para migrations).
+- Papéis: `app_writer` (pipeline), `app_reader` (comando `/pergunta`, só views permitidas, `statement_timeout` de 5 s, sem acesso a `audit_log` e tabelas de configuração sensível), `migrator` (só para migrations; hoje é o dono do banco) e, quando o webhook existir, `app_webhook` (só `INSERT` em aprovação e `audit_log`).
 - No Supabase: RLS habilitado em todas as tabelas, nenhuma chave `service_role` fora do servidor, API REST pública desabilitada ou sem tabelas expostas.
 - Conexão sempre com TLS; backup diário do provedor e exportação semanal criptografada para o R2.
 
@@ -351,7 +258,7 @@ Trate segurança como requisito funcional. Crie `SECURITY.md` com o modelo de am
 
 ```
 garimpo-engine/
-├── .github/workflows/      # ci.yml, security.yml, daily.yml, publish.yml, report.yml, market.yml, token-refresh.yml
+├── .github/workflows/      # _run.yml (reutilizável), ci, security, daily, publish, report, healthcheck; depois market, token-refresh
 ├── config/
 │   ├── niches.yaml
 │   ├── niches.schema.json  # gerado
@@ -359,15 +266,19 @@ garimpo-engine/
 ├── src/
 │   ├── config/             # modelos Pydantic, merge de defaults, validador
 │   ├── common/             # db, logging com redação, llm com teto de custo, telegram, security
-│   ├── sources/            # shopee.py, mercadolivre_manual.py, coupons/
-│   ├── pipeline/           # ingest, transform, quality, score
-│   ├── agents/             # base.py + um arquivo por agente
-│   ├── content/            # templates, render_image.py, render_video.py
-│   ├── publishers/         # telegram.py, instagram.py, tiktok.py
+│   ├── sources/            # shopee.py, manual.py (CSV), fake.py (demo/testes); depois coupons/
+│   ├── pipeline/           # ingest, transform (com checagens de qualidade), score, content (seleção)
+│   ├── agents/             # (futuro) agentes assíncronos: cupons, mercado, concorrentes
+│   ├── content/            # brand, copy (template/Claude), caption (+ conformidade), render (Pillow)
+│   ├── publishers/         # telegram.py; depois instagram.py, tiktok.py
+│   ├── tracking/           # cloudflare.py (KV/D1), sync.py (cliques e conversões)
+│   ├── reports/            # daily.py
+│   ├── approval.py         # prévias, botões assinados, respostas
+│   ├── commands.py         # /status, /top, /pausar, /retomar
 │   └── run.py              # python -m src.run --steps ... --run-date ... --niche ...
 ├── sql/migrations/
 ├── site/                   # Astro, build parametrizado por nicho
-├── worker/                 # redirect + webhook + KV
+├── worker/                 # redirect /go + KV + D1 (webhook depois)
 ├── scripts/
 ├── tests/
 ├── docs/                   # README, ADRs, runbook, secrets.md, dicionário de dados
@@ -378,36 +289,40 @@ garimpo-engine/
 
 ## Fases e critérios de aceite
 
-**Fase 1 — Fundação e segurança**
-- Repositório, `uv`, `ruff`, `pytest`, pre-commit com `gitleaks`, `ci.yml` e `security.yml`, Dependabot, `SECURITY.md`, `docs/secrets.md`.
-- Modelo de configuração multi-nicho com validação e geração do JSON Schema.
-- Logging JSON com redação de segredos, `run_id`, `correlation_id`, `niche_id`.
-- Migrations com papéis de banco e RLS. Bot do Telegram enviando alerta de teste.
-- Aceite: `python -m src.run --steps healthcheck` passa para todos os nichos ativos; `security.yml` verde.
+Ordem orientada a receita (ARQUITETURA.md §8): o ciclo post → clique → venda fecha primeiro no Telegram.
 
-**Fase 2 — Dados**
-- Cliente da Shopee Affiliate Open API (assinatura conforme documentação do painel; confirme os campos no explorador GraphQL antes de fixar o schema), rate limiter, backoff em 429.
-- Bronze → silver → gold por nicho, com checagens de qualidade.
-- Aceite: dois dias seguidos geram `product_score` por nicho; reprocessar o mesmo dia não altera contagens; falha forçada em um nicho não afeta os outros.
+**Fase 1 — Fundação e segurança** ✅ *feito na v0.1*
+- `uv`, `ruff`, `pytest`, pre-commit com `gitleaks`, `ci.yml`, `security.yml`, Dependabot, `SECURITY.md`, `docs/secrets.md`.
+- Configuração multi-nicho validada + JSON Schema; logging JSON com redação; migrations com papéis e RLS.
+- Aceite: `python -m src.run --steps healthcheck` passa; `security.yml` verde.
 
-**Fase 3 — Lojas e redirecionador**
-- Build do Astro por nicho, um projeto Pages por nicho, Schema.org `Product`, `/ofertas`, `/bio`, páginas legais, sitemap, headers de segurança, Lighthouse ≥ 90.
-- Worker `/go` com allowlist de domínios, registro de clique por nicho e canal.
-- Aceite: deploy automático de todas as lojas ativas; testes de open redirect passando.
+**Fase 2 — Dados + Telegram + medição** ✅ *feito na v0.1*
+- Cliente da Shopee (assinatura, rate limit, backoff; confirmar campos no explorador GraphQL), CSV manual.
+- Bronze → silver → gold por nicho, com checagens de qualidade; seleção com exploração de 20%.
+- Copy (template ou Claude + revisor), arte, prévia com botões, publicador do Telegram com circuit breaker.
+- `subIds` com `content_id`, Worker `/go` com allowlist e cliques no D1, importação de conversões
+  (`conversionReport` e CSV), relatório diário, comandos do bot.
+- Aceite: dois dias seguidos geram `product_score`; reprocessar não altera contagens; falha forçada num nicho não
+  afeta os outros; posts publicados sem duplicação.
 
-**Fase 4 — Conteúdo e aprovação**
-- Templates com marca por nicho; copy com saída JSON validada; Revisor com regras + LLM.
-- Prévia no Telegram com nicho identificado e botões Aprovar/Rejeitar/Reagendar; webhook validado e auditado.
-- Aceite: um produto de cada nicho ativo chega a `approved`.
+**Fase 3 — Instagram e TikTok** ⏳ *próxima*
+- Mídia no R2 (URL pública para a Graph API); feed, reels e stories no Instagram; TikTok como **rascunho** por padrão
+  (app não auditado só publica privado), com o passo manual documentado.
+- Story e vídeo vertical (Playwright/FFmpeg num workflow separado para poupar minutos).
+- Limites do YAML por canal, circuit breaker por nicho e canal, `token-refresh.yml` para o token do Instagram.
+- Aceite: posts nas contas certas de cada nicho, sem duplicação em reexecução.
 
-**Fase 5 — Publicação**
-- Telegram, Instagram (feed, reels, stories) e TikTok (rascunho) por nicho; circuit breaker por nicho e canal; limites do YAML; `/pausar <nicho> <canal>`; renovação de tokens.
-- Aceite: posts publicados nas contas certas de cada nicho, sem duplicação em reexecução.
+**Fase 4 — Lojas**
+- Build do Astro por nicho, um projeto Pages por nicho, Schema.org `Product`, `/ofertas`, `/bio`, páginas legais,
+  sitemap, headers de segurança, Lighthouse ≥ 90; links `rel="sponsored nofollow"` passando pelo `/go` com canal
+  `bio`/`site`.
+- Aceite: deploy automático de todas as lojas ativas.
 
-**Fase 6 — Cupons, medição e relatórios**
-- Caçador de cupons; importação de conversões; relatório diário consolidado e por nicho; Sentinela; Consultor com `experiment`; comandos `/status`, `/top <nicho>`, `/produto <id>`, `/pergunta <texto>`.
+**Fase 5 — Cupons, webhook e experimentos**
+- Caçador de cupons; Sentinela; Consultor com `experiment`; `/pergunta <texto>` com `app_reader`.
+- Webhook do Telegram no Worker (resposta imediata aos botões) com `app_webhook`.
 
-**Fase 7 — Mercado e concorrentes**
+**Fase 6 — Mercado e concorrentes**
 - Analista de mercado com `niche_opportunity` e abertura de PR para nicho aprovado; Monitor de concorrentes por nicho.
 - Aceite: relatório semanal de oportunidades no Telegram e PR gerado ao aprovar uma sugestão.
 
@@ -420,4 +335,4 @@ garimpo-engine/
 
 ## Antes de começar
 
-Faça no máximo 3 perguntas, apenas se forem bloqueantes (ex.: domínio confirmado, credenciais disponíveis). Marca e nichos iniciais já estão definidos acima. Para o resto, assuma valores razoáveis, liste as suposições no README e siga para a Fase 1.
+Faça no máximo 3 perguntas, apenas se forem bloqueantes (ex.: domínio confirmado, credenciais disponíveis). Marca e nichos iniciais já estão definidos acima. Para o resto, assuma valores razoáveis, liste as suposições no README e siga para a próxima fase pendente.

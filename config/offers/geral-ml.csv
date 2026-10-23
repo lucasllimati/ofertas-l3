@@ -1,0 +1,5 @@
+platform,item_id,title,price,price_original,image_url,affiliate_url,rating,reviews,sales_total,commission_rate,category
+# Cole uma oferta por linha. Obrigatórios: platform (shopee|mercadolivre|amazon), title, price, affiliate_url.
+# affiliate_url = link gerado no painel de afiliados (precisa ser https e de domínio permitido em config/allowed_domains.json).
+# Exemplo (apague o # para usar):
+# mercadolivre,MLB123,Organizador de Gaveta 6 Divisórias,39.90,59.90,https://http2.mlstatic.com/exemplo.jpg,https://mercadolivre.com/sec/abc123,4.8,1200,,0.08,organização

@@ -1,0 +1,19 @@
+name: publish
+
+on:
+  schedule:
+    # Slots 08:07, 12:07, 19:07 e 21:07 BRT (UTC-3). O cron do Actions pode atrasar:
+    # o publicador publica tudo que estiver aprovado com horário <= agora.
+    - cron: "7 11,15,22 * * *"
+    - cron: "7 0 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    uses: ./.github/workflows/_run.yml
+    with:
+      steps: publish
+    secrets: inherit

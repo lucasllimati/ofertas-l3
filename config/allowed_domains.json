@@ -1,0 +1,14 @@
+{
+  "_comment": "Destinos permitidos para links de afiliado e para o redirecionador /go. Usado pelo pipeline (Python) e pelo Worker (TypeScript). Subdomínios são aceitos.",
+  "domains": [
+    "shopee.com.br",
+    "shope.ee",
+    "shp.ee",
+    "mercadolivre.com.br",
+    "mercadolivre.com",
+    "meli.la",
+    "amazon.com.br",
+    "amzn.to",
+    "a.co"
+  ]
+}

@@ -1,0 +1,16 @@
+name: report
+
+on:
+  schedule:
+    - cron: "37 1 * * *" # 22:37 BRT: cliques, conversões e relatório diário
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  report:
+    uses: ./.github/workflows/_run.yml
+    with:
+      steps: report
+    secrets: inherit

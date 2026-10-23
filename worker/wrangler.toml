@@ -1,0 +1,18 @@
+# Preencha os ids depois de criar KV e D1 (ver README, seção "Redirecionador").
+# Ids de KV/D1 não são segredos, mas são da sua conta: mantenha o repositório privado.
+name = "garimpo-go"
+main = "src/index.ts"
+compatibility_date = "2026-10-01"
+workers_dev = true
+
+[[kv_namespaces]]
+binding = "LINKS"
+id = "REPLACE_WITH_KV_NAMESPACE_ID"
+
+[[d1_databases]]
+binding = "CLICKS"
+database_name = "garimpo-clicks"
+database_id = "REPLACE_WITH_D1_DATABASE_ID"
+
+# Domínio próprio (opcional): descomente depois de ter o domínio na Cloudflare.
+# routes = [{ pattern = "go.garimpo.com.br", custom_domain = true }]
