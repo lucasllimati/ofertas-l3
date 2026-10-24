@@ -5,11 +5,12 @@ from __future__ import annotations
 import csv
 import io
 import json
-from datetime import timedelta
+from datetime import datetime, timedelta
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 from src.common.logging import get_logger
-from src.common.util import iso
+from src.common.util import iso, parse_iso, parse_money
 from src.context import AppContext
 from src.pipeline.content import CODE_CHANNEL
 from src.sources.base import ConversionRecord
@@ -116,22 +117,41 @@ def sync_conversions(ctx: AppContext) -> dict[str, int]:
     return {"conversions": store_conversions(ctx, ctx.conversions_source.conversions(start, end))}
 
 
+def parse_purchase_time(value: str, tz: str) -> str:
+    """Aceita ISO (2026-10-20T15:00:00+00:00) ou o formato dos painéis brasileiros
+    (20/10/2026 ou 20/10/2026 15:00, no fuso do projeto). Devolve ISO em UTC, que é o
+    formato comparado pelos relatórios."""
+    value = value.strip()
+    for fmt in ("%d/%m/%Y %H:%M:%S", "%d/%m/%Y %H:%M", "%d/%m/%Y"):
+        try:
+            return iso(datetime.strptime(value, fmt).replace(tzinfo=ZoneInfo(tz)))
+        except ValueError:
+            pass
+    return iso(parse_iso(value))  # ValueError se não for ISO: a linha é recusada com o número
+
+
 def import_conversions_csv(ctx: AppContext, path: Path) -> dict[str, int]:
     """CSV exportado do painel (ML/Amazon): platform,order_id,item_id,purchase_time,status,amount,commission,sub_id
-    sub_id no formato <nicho>-<canal>-<content_id> (ex.: casa-tg-ab12cd34ef)."""
+    sub_id no formato <nicho>-<canal>-<content_id> (ex.: casa-tg-ab12cd34ef).
+    Valores aceitam vírgula decimal (39,90) e "R$"; datas em ISO ou dd/mm/aaaa [hh:mm]."""
+    tz = ctx.config.defaults.timezone
     records = []
-    for row in csv.DictReader(io.StringIO(path.read_text(encoding="utf-8-sig"))):
-        records.append(
-            ConversionRecord(
-                platform=(row.get("platform") or "manual").strip(),
-                conversion_id="csv",
-                order_id=(row.get("order_id") or "").strip(),
-                item_id=(row.get("item_id") or "").strip(),
-                purchase_time=(row.get("purchase_time") or iso(ctx.now)).strip(),
-                status=(row.get("status") or "").strip(),
-                amount=float(row.get("amount") or 0),
-                commission=float(row.get("commission") or 0),
-                sub_ids=[s for s in (row.get("sub_id") or "").split("-") if s],
+    for line, row in enumerate(csv.DictReader(io.StringIO(path.read_text(encoding="utf-8-sig"))), start=2):
+        try:
+            records.append(
+                ConversionRecord(
+                    platform=(row.get("platform") or "manual").strip(),
+                    conversion_id="csv",
+                    order_id=(row.get("order_id") or "").strip(),
+                    item_id=(row.get("item_id") or "").strip(),
+                    purchase_time=parse_purchase_time(row.get("purchase_time") or iso(ctx.now), tz),
+                    status=(row.get("status") or "").strip(),
+                    amount=parse_money(row.get("amount")),
+                    commission=parse_money(row.get("commission")),
+                    sub_ids=[s for s in (row.get("sub_id") or "").split("-") if s],
+                )
             )
-        )
+        except ValueError as exc:
+            # Nada é gravado se o arquivo tiver linha inválida: corrija e importe de novo.
+            raise ValueError(f"{path.name} linha {line}: {exc}") from None
     return {"conversions": store_conversions(ctx, records)}

@@ -65,6 +65,19 @@ def host_allowed(url: str, allowed: list[str]) -> bool:
     return any(host == d or host.endswith("." + d) for d in allowed)
 
 
+def parse_money(value: str | None) -> float:
+    """'R$ 1.234,50' / '1234.50' / '39,90' -> float. Vazio vira 0; texto inválido levanta ValueError."""
+    text = (value or "").replace("R$", "").strip()
+    if not text:
+        return 0.0
+    if "," in text:  # formato brasileiro: ponto é milhar, vírgula é decimal
+        text = text.replace(".", "").replace(",", ".")
+    try:
+        return float(text)
+    except ValueError:
+        raise ValueError(f"valor inválido: {value!r}") from None
+
+
 def brl(value: float) -> str:
     """Formata 1234.5 -> 'R$ 1.234,50'."""
     text = f"{value:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")

@@ -7,7 +7,7 @@
 
 ## Estado atual (leia antes de tudo)
 
-A **versão 0.1 já está implementada e testada** neste repositório: fundação e segurança, dados
+As **versões 0.1 a 0.3 já estão implementadas e testadas** neste repositório (histórico em `CHANGELOG.md`; agentes e status em `docs/agentes.md`; índice da documentação em `docs/README.md`): fundação e segurança, dados
 (Shopee API + CSV manual, bronze/silver/gold, score), conteúdo (copy template/Claude, arte, regras de
 conformidade), aprovação no Telegram, publicação no Telegram, rastreio (`subIds`, Worker `/go`, D1),
 conversões e relatório diário. Veja `README.md`, `ARQUITETURA.md` e as decisões em `docs/adr/`.
@@ -22,6 +22,8 @@ Ao continuar, **não reescreva o que existe**: leia o código, rode `uv run pyte
   quando houver agentes assíncronos de verdade (cupons, mercado, concorrentes).
 - SQL portátil Postgres/SQLite com datas em TEXT; schema `garimpo` no Postgres (ADR 0004).
 - Cliques no D1, mapa de links no KV (ADR 0005).
+- Produção só roda commit verde em `ci` e `security` (job `verify`, ADR 0006); backup semanal próprio e cifrado (ADR 0007).
+- Regras de anúncio já no código: copy limpa de links/@/telefone, "de/por" só verificado, #publi na 1ª linha (ver `docs/security-review.md`). Mantenha-as ao criar canais novos (Instagram, TikTok, lojas).
 
 ---
 
