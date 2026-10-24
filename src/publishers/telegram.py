@@ -106,6 +106,15 @@ def publish_niche(ctx: AppContext, niche: Niche) -> dict[str, int]:
             continue
         try:
             photo = item["media_file_id"] or render_for(ctx, niche, item)
+        except Exception:
+            # Falhou antes de enviar: com certeza não saiu. Volta para a fila em vez de "não sei se saiu".
+            log.exception("arte não gerada; post volta para a fila", extra={"data": {"content": item["id"]}})
+            ctx.db.execute(
+                "UPDATE content_item SET status = 'approved', published_at = NULL, updated_at = ? WHERE id = ?",
+                (iso(ctx.now), item["id"]),
+            )
+            continue
+        try:
             msg = ctx.telegram.send_photo(chat_id, photo, item["caption"])
         except TelegramError as exc:
             failures += 1

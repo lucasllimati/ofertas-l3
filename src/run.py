@@ -12,6 +12,7 @@ Opções: --run-date AAAA-MM-DD, --niche <id>, --now <ISO UTC>, --import-convers
 from __future__ import annotations
 
 import argparse
+import html
 import os
 import sys
 import traceback
@@ -69,15 +70,36 @@ def step_sync_niches(ctx: AppContext) -> dict[str, Any]:
 
 
 def step_healthcheck(ctx: AppContext, notify: bool = False) -> dict[str, Any]:
+    """Confere banco, bot e, para cada nicho ativo, se o bot pode publicar no canal.
+
+    Bot fora do canal (ou sem "Publicar mensagens") é o erro de configuração mais comum; sem esta
+    checagem ele só apareceria na primeira publicação, pausando o canal pelo circuit breaker.
+    """
     ctx.db.scalar("SELECT 1")
     me = ctx.telegram.get_me()
-    active = [n.id for n in ctx.config.niches if n.is_active]
+    active = [n for n in ctx.config.niches if n.is_active]
+    problems = []
+    for niche in active:
+        chat_id = ctx.channel_chat_id(niche)
+        try:
+            member = ctx.telegram.get_chat_member(chat_id, me["id"])
+        except Exception as exc:
+            problems.append(f"{niche.id}: canal {chat_id or '(sem chat id)'} inacessível ({type(exc).__name__})")
+            continue
+        can_post = member.get("status") == "creator" or (
+            member.get("status") == "administrator" and member.get("can_post_messages", False)
+        )
+        if not can_post:
+            problems.append(f"{niche.id}: o bot não é admin com 'Publicar mensagens' em {chat_id}")
+    if problems:
+        raise RuntimeError("; ".join(problems))
     if notify:
         ctx.telegram.send_message(
             ctx.admin_chat_id,
-            f"✅ Garimpo healthcheck ok · bot @{me.get('username')} · nichos ativos: {', '.join(active)}",
+            f"✅ Garimpo healthcheck ok · bot @{html.escape(str(me.get('username')))} · "
+            f"canais ok: {', '.join(n.id for n in active)}",
         )
-    return {"bot": me.get("username"), "active": active}
+    return {"bot": me.get("username"), "active": [n.id for n in active]}
 
 
 def per_niche(fn: Callable[[AppContext, Niche], dict], statuses: tuple[str, ...]):
@@ -316,7 +338,8 @@ def main(argv: list[str] | None = None) -> int:
     if failures:
         from src.publishers.telegram import alert
 
-        alert(ctx, "Falhas na execução " + ctx.run_id + ":\n" + "\n".join(failures)[:3500])
+        # O alerta vai em HTML: sem escape, um erro com "<" faria o Telegram recusar a mensagem inteira.
+        alert(ctx, f"Falhas na execução {ctx.run_id}:\n" + html.escape("\n".join(failures)[:3500]))
         ctx.db.close()
         return 1
     if ctx.demo:

@@ -119,7 +119,9 @@ flowchart LR
 - **Exploração vs. exploração:** reserve ~20% dos slots de conteúdo para produtos novos de score médio (estratégia ε-greedy). Sem isso o sistema fica preso nos mesmos produtos e nunca descobre o próximo campeão.
 
 ### 3.3 Decisão e conteúdo (agentes)
-Os agentes conversam por eventos na tabela `agent_event`; cada um é uma função pura com entrada e saída Pydantic. LLM só escreve texto e classifica; **nunca** decide ranking, preço ou publicação.
+Responsabilidades, status de cada agente e ideias de novos: **[docs/agentes.md](docs/agentes.md)**.
+
+Na versão atual os agentes rodam como **passos determinísticos** em sequência ([src/run.py](src/run.py)), com falha isolada por nicho; a fila `agent_event` da especificação fica para quando houver agentes assíncronos (cupons, mercado, concorrentes). O diagrama abaixo mostra o desenho completo; Lojista, Sentinela, Caçador de cupons, Analista de mercado, Monitor de concorrentes e Consultor ainda não existem. O LLM só escreve e revisa texto; **nunca** decide ranking, preço, link ou publicação.
 
 ```mermaid
 flowchart TB
@@ -204,7 +206,15 @@ Horários em America/Sao_Paulo. O cron do GitHub Actions é em UTC e **pode atra
 
 ## 6. Segurança (resumo)
 
-O prompt já cobre bem. Pontos que esta arquitetura acrescenta:
+Política, verificação automática e modelo de ameaças: [SECURITY.md](SECURITY.md). Última revisão: [docs/security-review.md](docs/security-review.md). Em resumo, o que está em produção:
+
+- **Trava de produção:** só roda commit verde em `ci` e `security` ([ADR 0006](docs/adr/0006-trava-de-producao.md)).
+- **Texto do vendedor e do LLM** limpo de links, @perfis e telefones; "de/por" só verificado; #publi na 1ª linha.
+- **Banco:** schema fora da API pública, RLS em tudo, pipeline sem DDL e sem `DELETE` em vendas, posts e auditoria, TLS obrigatório, backup semanal cifrado ([ADR 0007](docs/adr/0007-backup-proprio-criptografado.md)).
+- **Botões de aprovação** assinados (HMAC), só para o seu usuário, com validade de 72 h.
+- **D1 de cliques** sem IP e sem user-agent; robôs não contam.
+
+Previsto para quando o webhook do Telegram existir:
 
 - **Papel `app_webhook`** para o Worker, só com `INSERT` em `approval` e `audit_log`. O Worker nunca recebe a credencial do `app_writer`.
 - **Conexão Worker → Postgres** via driver HTTP do provedor (Neon serverless ou API do Supabase com chave restrita) ou Hyperdrive, nunca com a string de conexão do pipeline.

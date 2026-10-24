@@ -144,7 +144,7 @@ jobs:
           files=(out/backup/*.jsonl.gz)
           [ ${#files[@]} -gt 0 ] || { echo "::error::nenhum backup gerado"; exit 1; }
           for f in "${files[@]}"; do
-            gpg --batch --yes --pinentry-mode loopback --passphrase-fd 0               --symmetric --cipher-algo AES256 --output "$f.gpg" "$f" <<< "$BACKUP_PASSPHRASE"
+            gpg --batch --yes --pinentry-mode loopback --passphrase-fd 0 --symmetric --cipher-algo AES256 --output "$f.gpg" "$f" <<< "$BACKUP_PASSPHRASE"
             shred -u "$f"
           done
       - name: guardar backup (90 dias)

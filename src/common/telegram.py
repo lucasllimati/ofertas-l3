@@ -39,7 +39,11 @@ class TelegramClient:
             except httpx.HTTPError as exc:
                 # Nunca propaga a exceção original: a URL contém o token.
                 raise ConnectionError(redact(f"telegram {method}: {type(exc).__name__}", [self._token])) from None
-            body = resp.json() if resp.content else {}
+            try:
+                body = resp.json() if resp.content else {}
+            except ValueError:
+                # Página de erro do gateway (ex.: 502 em HTML): não dá para saber se a mensagem saiu.
+                raise ConnectionError(f"telegram {method}: resposta inválida HTTP {resp.status_code}") from None
             if body.get("ok"):
                 return body.get("result")
             retry_after = (body.get("parameters") or {}).get("retry_after")
@@ -74,6 +78,9 @@ class TelegramClient:
             return self._call("sendPhoto", data, files={"photo": ("post.png", photo, "image/png")})
         return self._call("sendPhoto", {**data, "photo": photo})
 
+    def get_chat_member(self, chat_id: str, user_id: int) -> dict[str, Any]:
+        return self._call("getChatMember", {"chat_id": chat_id, "user_id": user_id})
+
     def edit_reply_markup(self, chat_id: str, message_id: str, reply_markup) -> Any:
         return self._call(
             "editMessageReplyMarkup",
@@ -105,7 +112,8 @@ class FakeTelegram:
         self.outbox = outbox
         self.admin_user_id = admin_user_id
         self.auto_approve = auto_approve
-        self.fail_chats: set[str] = set()
+        self.fail_chats: set[str] = set()  # chats que respondem erro da API (testes)
+        self.not_admin_chats: set[str] = set()  # canais onde o bot não é admin (testes)
         self._msg_id = 100
         self._update_id = int(time.time() * 1000)  # monotônico entre execuções, como no Telegram
         if outbox:
@@ -143,6 +151,13 @@ class FakeTelegram:
             data = reply_markup["inline_keyboard"][0][0]["callback_data"]
             self.push_callback(data, msg["message_id"], chat_id)
         return msg
+
+    def get_chat_member(self, chat_id, user_id):
+        if str(chat_id) in self.fail_chats:
+            raise TelegramError("getChatMember", "Bad Request: chat not found", 400)
+        if str(chat_id) in self.not_admin_chats:
+            return {"status": "member"}
+        return {"status": "administrator", "can_post_messages": True}
 
     def edit_reply_markup(self, chat_id, message_id, reply_markup):
         self.sent.append({"kind": "edit", "chat_id": str(chat_id), "message_id": message_id})

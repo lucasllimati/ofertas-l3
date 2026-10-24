@@ -422,6 +422,7 @@ mercadolivre,MLB123,Organizador de Gaveta 6 Divisórias,39.90,59.90,https://http
    platform,order_id,item_id,purchase_time,status,amount,commission,sub_id
    mercadolivre,2000123,MLB123,2026-10-20T15:00:00+00:00,paid,39.90,3.19,casa-tg
    ```
+   Valores aceitam vírgula decimal e `R$` (`"R$ 39,90"`); datas em ISO ou `dd/mm/aaaa [hh:mm]` (horário de Brasília). Se uma linha estiver inválida, nada é importado e o erro diz o número da linha.
    `sub_id` = `<sub_id do nicho>-<canal>`, e opcionalmente `-<id do post>` (ex.: `casa-tg-ab12cd34ef`). O id do post aparece no link `/go` ou na tabela `content_item`.
 3. Importe:
    ```bash
@@ -613,7 +614,7 @@ Tudo pelo GitHub: **Actions → garimpo → Run workflow** e escolha o passo. Pe
 
 | # | Passo | O que esperar |
 |---|---|---|
-| 1 | `healthcheck` | Chega "✅ Garimpo healthcheck ok · bot @... · nichos ativos: casa, pet" no seu Telegram |
+| 1 | `healthcheck` | Chega "✅ Garimpo healthcheck ok · bot @... · canais ok: casa, pet" no seu Telegram. Ele confere o banco, o bot e se o bot é admin com "Publicar mensagens" em cada canal ativo; se falhar, a mensagem de erro diz qual canal corrigir |
 | 2 | `daily` | Chegam até 5 prévias por nicho, com arte, legenda e botões ✅ ❌ ⏭ |
 | 3 | Aprovar | Toque em ✅ nas prévias que gostar. O botão é processado na próxima execução |
 | 4 | `publish` | Os aprovados com horário vencido saem nos canais. Depois disso o publish roda sozinho às 08:07, 12:07, 19:07 e 21:07 |
@@ -802,6 +803,7 @@ Depois de trocar:
 | `connection refused` / timeout no banco | URL de conexão direta (IPv6) ou projeto pausado | Use o **Session pooler**; reative o projeto no Supabase |
 | `password authentication failed` | Usuário sem o `.<project-ref>` no pooler ou senha com caractere especial | Usuário `garimpo_pipeline.<project-ref>`; senha sem `@ : / ? #` |
 | `permission denied for schema garimpo` | Migration não rodada ou usuário criado antes dela | Rode `--steps migrate` como dono e recrie o usuário (seção 5.4) |
+| Healthcheck: `o bot não é admin com 'Publicar mensagens' em @canal` ou `canal ... inacessível` | Bot fora do canal, sem permissão de publicar, ou `TG_*_CHAT_ID` errado | Canal → Administradores → bot com "Publicar mensagens"; confira o `@` no secret |
 | `Forbidden: bot is not a member of the channel chat` | Bot não é admin do canal | Adicione o bot como admin com "Publicar mensagens" |
 | `chat not found` | `TG_*_CHAT_ID` errado | Use `@canal` (público) ou o id `-100...` (privado) |
 | Prévia não chega | Você não mandou `/start` ao bot ou `TELEGRAM_ADMIN_CHAT_ID` errado | Envie `/start`; confira o id no @userinfobot |

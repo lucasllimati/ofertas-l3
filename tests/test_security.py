@@ -52,6 +52,21 @@ def test_workflow_checker_flags_problems(tmp_path):
     assert any("interpolado" in p for p in problems)
 
 
+def test_docs_internal_links_are_valid(tmp_path):
+    from scripts import check_docs_links
+
+    assert check_docs_links.check(check_docs_links.markdown_files()) == []
+    broken = tmp_path / "x.md"
+    broken.write_text("# Título\n[ok](#título) [ruim](#nao-existe) [sumiu](nao-existe.md)\n", encoding="utf-8")
+    monkey_root = check_docs_links.ROOT
+    try:
+        check_docs_links.ROOT = tmp_path
+        problems = check_docs_links.check([broken])
+    finally:
+        check_docs_links.ROOT = monkey_root
+    assert len(problems) == 2
+
+
 def test_production_workflow_requires_verify_gate(tmp_path):
     gated = (ROOT / ".github" / "workflows" / "garimpo.yml").read_text(encoding="utf-8")
     ungated = gated.replace("    needs: verify\n", "")

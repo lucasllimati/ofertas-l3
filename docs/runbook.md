@@ -56,6 +56,9 @@ uv run python -m src.run --steps daily --run-date 2026-10-20 --niche casa
 | `todas as palavras-chave da Shopee falharam` | Credencial da Shopee inválida/expirada, limite de chamadas ou API fora. Rode o healthcheck; se for credencial, rotacione. |
 | `ofertas inválidas: verifique a fonte` | Mais da metade das ofertas veio quebrada. Provável mudança de campo na API: confira no explorador GraphQL e ajuste `src/sources/shopee.py`. |
 | `orçamento diário de LLM atingido` | Normal em dia de muito conteúdo; a copy cai para template. Aumente o teto no YAML se valer a pena. |
+| `healthcheck falhou: ... o bot não é admin` / `inacessível` | Bot fora do canal, sem "Publicar mensagens" ou `TG_*_CHAT_ID` errado. Corrija no Telegram e rode o `healthcheck` de novo. |
+| `⛔ Produção bloqueada: o commit ... não passou em ci/security` | O último commit da `main` tem `ci` ou `security` vermelho (muitas vezes por vulnerabilidade nova em dependência). Abra o link, corrija por PR e faça merge com os 3 checks verdes; a próxima execução agendada volta sozinha. |
+| `importação de conversões: ... linha N` | O CSV tem valor ou data inválida na linha N. Nada foi importado; corrija e rode de novo (aceita `39,90`, `R$`, `dd/mm/aaaa`). |
 | `Não consegui processar um botão ou comando` | Uma atualização do Telegram deu erro (a fila seguiu). Toque de novo no botão; se repetir, veja o log do passo `approvals`. |
 | `BACKUP_PASSPHRASE não configurado` | Cadastre o secret (SETUP §12.5). O backup não roda sem ele, de propósito. |
 | Bloco "🔐 Segurança" no relatório | Alguém que não é você tocou em botões ou mandou comandos. É bloqueado; se for frequente, confira se o token do bot vazou (`/revoke` no BotFather). |
