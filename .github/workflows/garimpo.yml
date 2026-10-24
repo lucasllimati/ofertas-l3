@@ -64,6 +64,19 @@ jobs:
           echo "::error::o commit $SHA não passou em ci e security; produção não roda código não verificado"
           echo "$runs"
           exit 1
+      - name: avisar no Telegram que a produção foi bloqueada
+        if: failure()
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_ADMIN_CHAT_ID: ${{ secrets.TELEGRAM_ADMIN_CHAT_ID }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          SHA: ${{ github.sha }}
+        run: |
+          if [ -z "$TELEGRAM_BOT_TOKEN" ] || [ -z "$TELEGRAM_ADMIN_CHAT_ID" ]; then exit 0; fi
+          text="⛔ Produção bloqueada: o commit ${SHA:0:7} não passou em ci/security. Nada foi coletado nem publicado. Veja: $RUN_URL"
+          curl -sS --fail -o /dev/null "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+            --data-urlencode "chat_id=${TELEGRAM_ADMIN_CHAT_ID}" --data-urlencode "text=${text}" \
+            || echo "::warning::não foi possível avisar no Telegram"
 
   run:
     needs: verify
