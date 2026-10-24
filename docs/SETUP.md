@@ -103,13 +103,23 @@ Detalhes: [SECURITY.md](../SECURITY.md).
 | uv | Dependências Python com lockfile | `pip install uv` | `uv --version` |
 | GitHub CLI | Cadastrar secrets e rodar workflows pelo terminal | [cli.github.com](https://cli.github.com) e depois `gh auth login` | `gh auth status` |
 | Node.js 24 | Só para o Worker da Cloudflare (seção 10) | [nodejs.org](https://nodejs.org) | `node --version` |
-| pre-commit | Bloquear segredo antes do commit | `uv tool install pre-commit` | `pre-commit --version` |
+| pre-commit | Bloquear segredo antes do commit | `uv tool install pre-commit` (passo abaixo) | `pre-commit --version` |
+
+O `pre-commit` não vem com o projeto: instale uma vez como ferramenta do `uv`:
+
+```powershell
+uv tool install pre-commit
+pre-commit --version          # deve mostrar a versão, ex.: pre-commit 4.7.0
+```
+
+Se aparecer "O termo 'pre-commit' não é reconhecido", a pasta de ferramentas do `uv` não está no PATH. Rode `uv tool update-shell`, **feche e abra o terminal** e teste de novo. A pasta é a que `uv tool dir --bin` mostra (no Windows, `C:\Users\<você>\.local\bin`).
 
 Na pasta do projeto, uma vez:
 
 ```bash
 uv sync                                       # instala dependências
 pre-commit install                            # ativa gitleaks e ruff antes de cada commit
+pre-commit run --all-files                    # primeira vez: baixa os ganchos (alguns minutos); tudo deve dar Passed
 uv run pytest                                 # todos os testes devem passar
 uv run python -m src.run --demo --steps all   # demo sem nenhuma conta; veja out/demo/
 ```
@@ -122,8 +132,12 @@ O repositório `lucasllimati/ofertas-l3` já existe. Confira:
 
 1. **Privado:** Settings → General → Danger Zone → deve estar "Private".
 2. **2FA na sua conta:** foto do perfil → Settings → Password and authentication → Two-factor authentication.
-3. **Actions habilitado:** Settings → Actions → General → "Allow all actions and reusable workflows" (ou "Allow actions created by GitHub" + as listadas no repositório). O projeto fixa todas as actions por SHA.
-4. **Permissão padrão do token do Actions:** Settings → Actions → General → Workflow permissions → **Read repository contents** (o padrão mais seguro; os workflows já declaram o que precisam).
+3. **Actions habilitado:** aba **Settings do repositório** (engrenagem no topo, na linha de Code/Issues/Pull requests; não é o Settings do seu perfil) → menu da esquerda, grupo **Code and automation** → **Actions** → **General** → "Allow all actions and reusable workflows" (ou "Allow actions created by GitHub" + as listadas no repositório). O projeto fixa todas as actions por SHA.
+4. **Permissão padrão do token do Actions:** na mesma página (Settings → Actions → General), role **até o fim** → seção **Workflow permissions** → **Read repository contents and packages permissions** (o padrão mais seguro; os workflows já declaram o que precisam). Deixe desmarcado "Allow GitHub Actions to create and approve pull requests". Conferir pelo terminal:
+   ```powershell
+   gh api repos/lucasllimati/ofertas-l3/actions/permissions/workflow
+   # esperado: "default_workflow_permissions":"read", "can_approve_pull_request_reviews":false
+   ```
 5. **Apagar branch após merge:** Settings → General → Pull Requests → "Automatically delete head branches" (já ativado).
 6. **Proteção da `main`:** em repositório privado exige **GitHub Pro** (US$ 4/mês); no plano Free o GitHub recusa. Com Pro: Settings → Rules → Rulesets → New branch ruleset → branch padrão → marque *Restrict deletions*, *Block force pushes*, *Require a pull request* (0 aprovações) e *Require status checks*: `python`, `worker`, `scan`. **Sem Pro:** faça tudo por PR e só faça merge com os 3 checks verdes.
 7. **Dependabot:** já configurado em [.github/dependabot.yml](../.github/dependabot.yml). Ele abre PRs às segundas; faça merge quando os 3 checks estiverem verdes.
@@ -781,6 +795,7 @@ Depois de trocar:
 
 | Sintoma | Causa provável | Solução |
 |---|---|---|
+| `'pre-commit' não é reconhecido` | Ferramenta não instalada ou fora do PATH | `uv tool install pre-commit`; se persistir, `uv tool update-shell` e reabra o terminal (seção 2) |
 | `segredos ausentes: ...` | Secret não cadastrado ou nome diferente | `gh secret list`; o nome precisa ser idêntico ao da tabela 12.1 |
 | `Shopee API não configurada` num nicho ativo | `mode: api` sem `SHOPEE_APP_ID`/`SHOPEE_APP_SECRET` | Cadastre os secrets ou troque para `mode: off` + CSV |
 | `todas as palavras-chave da Shopee falharam` | Credencial inválida, limite de chamadas ou API fora | Confira AppID/Secret; rode de novo mais tarde |
