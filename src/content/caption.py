@@ -37,10 +37,17 @@ def build_caption(
     link: str,
     price_date: date,
     brand_hashtags: list[str],
+    badge: str | None = None,
+    coupon_line: str | None = None,
 ) -> str:
+    """Legenda final. `badge` (Calendário sazonal) e `coupon_line` (Caçador de cupons) são montados
+    pelo código a partir da configuração, nunca pelo LLM nem pelo título do vendedor."""
     esc = html.escape
     # Identificação publicitária na primeira linha: clara e vista antes do link (CONAR).
-    lines = [f"<i>{DISCLOSURE}</i>", f"<b>{esc(copy.headline)}</b>", ""]
+    lines = [f"<i>{DISCLOSURE}</i>"]
+    if badge:
+        lines.append(f"🏷 <b>{esc(badge)}</b>")
+    lines += [f"<b>{esc(copy.headline)}</b>", ""]
     lines += [f"• {esc(b)}" for b in copy.bullets]
     lines.append("")
     pct = discount_pct(price, price_original)
@@ -49,6 +56,8 @@ def build_caption(
         lines.append(f"💰 <b>{brl(price)}</b> <s>{brl(price_original)}</s> (-{pct}%)")
     else:
         lines.append(f"💰 <b>{brl(price)}</b>")
+    if coupon_line:
+        lines.append(coupon_line)
     lines.append(f'👉 <a href="{esc(link, quote=True)}">Ver oferta</a>')
     lines.append("")
     lines.append(f"<i>{PRICE_NOTICE.format(date=price_date.strftime('%d/%m/%Y'))}</i>")
@@ -58,7 +67,7 @@ def build_caption(
     caption = "\n".join(lines)
     while len(_visible(caption)) > TELEGRAM_CAPTION_LIMIT and len(copy.bullets) > 1:
         copy = copy.model_copy(update={"bullets": copy.bullets[:-1]})
-        return build_caption(copy, price, price_original, link, price_date, brand_hashtags)
+        return build_caption(copy, price, price_original, link, price_date, brand_hashtags, badge, coupon_line)
     return caption
 
 

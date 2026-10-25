@@ -27,7 +27,10 @@ def collect(ctx: AppContext, niche: Niche) -> list[tuple[Offer, str]]:
         # Nicho candidate só monitora: sem API ainda, pula em vez de alertar todo dia.
         log.info("Shopee API não configurada; nicho candidato sem coleta hoje")
     elif niche.uses_shopee_api and shopee_cfg:
-        for keyword in shopee_cfg.keywords:
+        keywords = list(shopee_cfg.keywords)
+        if ctx.calendar:  # Calendário sazonal: palavras-chave extras do evento ativo
+            keywords += [k for k in ctx.calendar.extra_keywords(ctx.run_date, niche.id) if k not in keywords]
+        for keyword in keywords:
             try:
                 for offer in ctx.shopee.search(keyword, shopee_cfg.limit_per_keyword):
                     found.append((offer, keyword))
@@ -37,7 +40,7 @@ def collect(ctx: AppContext, niche: Niche) -> list[tuple[Offer, str]]:
                     "palavra-chave falhou",
                     extra={"data": {"keyword": keyword, "error": str(exc)[:200]}},
                 )
-        if shopee_cfg.keywords and failures == len(shopee_cfg.keywords):
+        if keywords and failures == len(keywords):
             raise RuntimeError("todas as palavras-chave da Shopee falharam")
     if niche.manual_offers:
         found.extend((offer, "manual") for offer in load_manual_offers(niche.manual_offers))

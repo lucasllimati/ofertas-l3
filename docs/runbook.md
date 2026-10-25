@@ -62,7 +62,25 @@ uv run python -m src.run --steps daily --run-date 2026-10-20 --niche casa
 | `Não consegui processar um botão ou comando` | Uma atualização do Telegram deu erro (a fila seguiu). Toque de novo no botão; se repetir, veja o log do passo `approvals`. |
 | `BACKUP_PASSPHRASE não configurado` | Cadastre o secret (SETUP §12.5). O backup não roda sem ele, de propósito. |
 | Bloco "🔐 Segurança" no relatório | Alguém que não é você tocou em botões ou mandou comandos. É bloqueado; se for frequente, confira se o token do bot vazou (`/revoke` no BotFather). |
+| `<nicho> · Vigia de preço: ... preço mudou de R$ X para R$ Y` | O preço mudou entre a aprovação e a publicação. Legenda e arte já foram refeitas com o preço novo e uma nova prévia chegou: aprove de novo se ainda valer a pena. Se acontecer demais, aumente `agents.price_guard.tolerance_pct`. |
+| `<nicho> · Vigia de preço: ... produto indisponível na loja` | O produto esgotou ou saiu da loja; o post ficou como `unavailable` e não será publicado. Nada a fazer. |
+| `⚠️ [nicho] produto indisponível num post publicado` (relatório) | Detector de link quebrado: o produto saiu da loja depois de publicado. Apague ou edite o post no canal, se quiser; o aviso não se repete para o mesmo post. |
+| `📅 Em N dia(s): <evento>` (relatório) | Calendário sazonal: prepare ofertas de ML/Amazon no CSV e cupons em `config/coupons.csv` antes do evento. |
+| `🎟 Cupom X (loja) vence em menos de 24 h` (relatório) | Troque ou renove o cupom em `config/coupons.csv`; o vencido sai das legendas sozinho. |
+| `configuração dos agentes inválida` (validate/CI) | `calendar.yaml`, `coupons.csv` ou `finance.yaml` com erro; a mensagem diz o arquivo e a linha. |
 | `getUpdates ... Conflict` | Existe um webhook configurado no bot. `https://api.telegram.org/bot<TOKEN>/deleteWebhook` (no navegador, sem compartilhar a URL). |
+
+## Fechar o mês (Conciliador + Contador)
+
+Automático no relatório do dia `dia_fechamento` (5) de cada mês, para o mês anterior: um resumo do Conciliador, o relatório do Contador e o CSV `fechamento-AAAA-MM.csv` como documento no Telegram.
+
+Para fechar outro mês ou refazer:
+
+- Telegram: `/fechamento 2026-10` (ou só `/fechamento` para o mês anterior); `/imposto` mostra a estimativa do mês atual, parcial.
+- GitHub: **Actions → garimpo → Run workflow → `close`** (mês anterior).
+- Terminal: `uv run python -m src.run --steps close --month 2026-10`.
+
+Antes de importar vendas do ML/Amazon do mês, rode `--import-conversions`; o fechamento só conta a comissão com status confirmado (`status_confirmados` em [finance.yaml](../config/finance.yaml)). Leve o CSV e o relatório ao contador; são estimativas para planejamento.
 
 ## Restaurar backup
 

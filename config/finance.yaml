@@ -1,0 +1,85 @@
+# Agentes Conciliador e Contador (docs/agentes.md).
+#
+# ⚠️ ESTIMATIVAS PARA PLANEJAMENTO. NÃO É CONSULTORIA CONTÁBIL, TRIBUTÁRIA OU JURÍDICA.
+# Alíquotas, tetos e regras mudam todo ano. Confira cada valor abaixo (fontes no fim) e valide
+# regime, CNAE e cálculo com um contador antes de pagar ou decidir.
+version: 1
+atualizado_em: 2026-10-24
+
+# pf      = pessoa física (sem CNPJ): IR mensal pela tabela progressiva com a redução de 2026
+# mei     = Microempreendedor Individual (DAS fixo). Só use se o contador confirmar que a sua
+#           ocupação está na lista do MEI: várias contabilidades dizem que afiliado (CNAE 7490-1/04)
+#           NÃO pode ser MEI, e enquadramento indevido gera cobrança retroativa como ME.
+# simples = Simples Nacional (ME), o enquadramento mais citado para afiliado.
+regime: simples
+mei_permitido: false        # true só depois de confirmar com o contador (habilita a comparação com o MEI)
+
+dia_fechamento: 5           # dia do mês em que o relatório traz o fechamento do mês anterior
+cambio_usd: 5.40            # para converter o custo de LLM (US$) em R$
+custos_fixos_mensais: 0     # domínio, GitHub Pro, contador, ferramentas... (R$/mês)
+status_confirmados: [completed, concluido, concluído, paid, pago, confirmed, aprovado, settled]
+
+planejamento:               # como dividir a comissão confirmada do mês
+  margem_reserva_impostos: 0.10   # guarda 10% a mais que o imposto estimado
+  reinvestimento_pct: 0.20        # do que sobra depois de impostos e custos: crescimento (ads, ferramentas)
+  reserva_emergencia_pct: 0.10    # do que sobra: caixa da empresa
+  retirada_alvo_mensal: 0         # quanto você quer tirar por mês (0 = o agente sugere)
+
+mei:
+  limite_anual: 81000             # sem mudança aprovada para 2026 (projetos PLP 108/2021 e outros em tramitação)
+  tolerancia_excesso: 0.20        # até 20% acima: DAS complementar e desenquadramento no ano seguinte
+  salario_minimo: 1621.00         # 2026 (há fontes com R$ 1.627: confira no Portal do Empreendedor)
+  inss_pct_salario_minimo: 0.05
+  iss_fixo: 5.00                  # serviços
+
+simples:
+  anexo: fator_r                  # iii | v | fator_r (afiliado costuma cair no V, que vira III com Fator R >= 28%)
+  folha_12m: 0                    # pró-labore + salários pagos nos últimos 12 meses (para o Fator R)
+  fator_r_minimo: 0.28
+  anexo_iii:                      # RBT12 até / alíquota nominal / parcela a deduzir (LC 123/2006)
+    - {ate: 180000, aliquota: 0.06, deducao: 0}
+    - {ate: 360000, aliquota: 0.112, deducao: 9360}
+    - {ate: 720000, aliquota: 0.135, deducao: 17640}
+    - {ate: 1800000, aliquota: 0.16, deducao: 35640}
+    - {ate: 3600000, aliquota: 0.21, deducao: 125640}
+    - {ate: 4800000, aliquota: 0.33, deducao: 648000}
+  anexo_v:
+    - {ate: 180000, aliquota: 0.155, deducao: 0}
+    - {ate: 360000, aliquota: 0.18, deducao: 4500}
+    - {ate: 720000, aliquota: 0.195, deducao: 9900}
+    - {ate: 1800000, aliquota: 0.205, deducao: 17100}
+    - {ate: 3600000, aliquota: 0.23, deducao: 62100}
+    - {ate: 4800000, aliquota: 0.305, deducao: 540000}
+
+pro_labore:
+  minimo_mensal: 1621.00          # pró-labore não pode ser menor que 1 salário mínimo
+  inss_pct: 0.11                  # parte do sócio no Simples (anexos III e V: a patronal está no DAS)
+  teto_inss: 8475.55              # 2026
+
+dividendos:                       # Lei 15.270/2025, desde jan/2026
+  limite_mensal_sem_retencao: 50000   # acima disso, por empresa e por pessoa no mês, retém 10% sobre o TOTAL
+  retencao_pct: 0.10
+
+irpf:                             # tabela mensal (Lei 15.191/2025) + redução de 2026 (Lei 15.270/2025)
+  desconto_simplificado: 607.20
+  tabela_mensal:
+    - {ate: 2428.80, aliquota: 0, deducao: 0}
+    - {ate: 2826.65, aliquota: 0.075, deducao: 182.16}
+    - {ate: 3751.05, aliquota: 0.15, deducao: 394.16}
+    - {ate: 4664.68, aliquota: 0.225, deducao: 675.49}
+    - {ate: null, aliquota: 0.275, deducao: 908.73}
+  redutor:
+    isento_ate: 5000.00           # até R$ 5.000: redução de até R$ 312,89 (zera o imposto)
+    valor_maximo: 312.89
+    parcial_ate: 7350.00          # R$ 5.000,01 a R$ 7.350: redução = a - b x rendimento
+    a: 978.62
+    b: 0.133145
+
+fontes:
+  - "IRPF 2026, redução até R$ 5 mil / R$ 7.350 (Receita Federal via COAD): https://coad.com.br/home/noticias-detalhe/135095"
+  - "MEI 2026: limite R$ 81 mil e DAS (Fenacon): https://fenacon.org.br/noticias/saiba-quanto-o-mei-vai-pagar-em-2026-com-reajuste-do-salario-minimo/"
+  - "MEI: excesso de faturamento e desenquadramento: https://www.meucontadoronline.com.br/blog/ultrapassei-limite-mei-2026/"
+  - "Simples Nacional anexos III e V e Fator R: https://valorfinal.com.br/tabela-simples-nacional-2026"
+  - "Teto do INSS 2026: https://triviumcontabil.com.br/tabela-inss-2026/"
+  - "Dividendos acima de R$ 50 mil/mês (Lei 15.270/2025): https://jornalcontabil.com.br/noticia/lei-15-270-define-regras-para-taxacao-de-lucros-e-dividendos-a-partir-de-2026/"
+  - "Afiliado e MEI (divergência entre fontes): https://tactus.com.br/cnae-de-afiliado/"

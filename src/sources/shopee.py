@@ -18,6 +18,7 @@ from typing import Any
 
 import httpx
 
+from src.agents.price_guard import PriceStatus
 from src.common.logging import get_logger
 from src.sources.base import ConversionRecord, Offer
 
@@ -126,6 +127,14 @@ class ShopeeClient:
             if offer:
                 offers.append(offer)
         return offers
+
+    def item_status(self, item_id: str) -> PriceStatus:
+        """Preço atual de um item (Vigia de preço). Sem resultado = indisponível.
+        Confirme no explorador GraphQL que productOfferV2 aceita o argumento itemId."""
+        q = f"{{ productOfferV2(itemId: {int(item_id)}, page: 1, limit: 1) {{ nodes {{ {PRODUCT_FIELDS} }} }} }}"
+        nodes = (self.query(q).get("productOfferV2") or {}).get("nodes") or []
+        offer = parse_product(nodes[0]) if nodes else None
+        return PriceStatus(available=offer is not None, price=offer.price if offer else None)
 
     def short_link(self, url: str, sub_ids: list[str]) -> str:
         subs = ", ".join(gql_str(s) for s in sub_ids[:5])

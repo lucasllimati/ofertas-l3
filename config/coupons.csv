@@ -1,0 +1,6 @@
+platform,code,description,discount_pct,discount_brl,min_purchase,valid_until,niches
+# Caçador de cupons (docs/agentes.md). Um cupom por linha; cole os do painel de afiliados ou de páginas oficiais.
+# valid_until: AAAA-MM-DD HH:MM (Brasília). niches: casa;pet (vazio = todos). discount_pct OU discount_brl.
+# Só entra no post se respeitar as regras de defaults.coupons (desconto mínimo e horas restantes).
+# Exemplo (apague o # para usar):
+# shopee,ACHADO10,10% em itens selecionados,10,,50,2026-11-30 23:59,casa;pet

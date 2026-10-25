@@ -2,6 +2,25 @@
 
 Mudanças relevantes para quem opera o Garimpo. Detalhes técnicos em cada PR.
 
+## [0.4.0] · 2026-10-25: 11 agentes novos e o Contador
+
+### Adicionado
+- **Vigia de preço e estoque:** reconsulta o produto na Shopee logo antes de publicar. Preço mudou mais que `tolerance_pct` → legenda e arte refeitas e nova prévia para reaprovação; esgotado → `unavailable`, não publica.
+- **Calendário sazonal** ([config/calendar.yaml](config/calendar.yaml)): 11.11, Esquenta Black Friday, Black Friday (27–30/11/2026), 12.12, Natal e Dia das Mães. Palavras-chave extras, até 3× posts no dia, selo na arte e aviso prévio no relatório.
+- **Classificador de conformidade** (Claude Haiku, opcional): barra remédio, réplica, adulto, arma e tabaco/álcool com título "limpo"; veredito guardado em `compliance_check`.
+- **Caçador de cupons** ([config/coupons.csv](config/coupons.csv)): melhor cupom válido na legenda; cupom vencido sai antes de publicar; `/cupons`.
+- **Sentinela** (posts 🔥 e 💤 no relatório) e **Reciclador** (campeões voltam depois do cooldown, até 20% das vagas).
+- **Detector de link quebrado** nos posts dos últimos 30 dias.
+- **Analista de mercado** (`/mercado`), **Otimizador de horários** (`/horarios <nicho>`) e **Laboratório A/B de copy**, no relatório de domingo.
+- **Conciliador + Contador** ([config/finance.yaml](config/finance.yaml)): fechamento mensal automático no dia 5 com CSV para a contabilidade; imposto estimado e comparação Simples III/V/Fator R, MEI e pessoa física com as regras de 2026; divisão do dinheiro (reserva, reinvestimento, caixa, retirada); otimizações e riscos. Comandos `/imposto` e `/fechamento`, passo `close`.
+- Bloco `agents:` no `niches.yaml` para ligar, desligar e ajustar cada agente por nicho; `validate` confere também calendário, cupons e finanças.
+- Migrations `0005_agents.sql` e `0006_agents_security.pg.sql` (RLS e permissões da tabela nova).
+
+### Mudado
+- Chamadas de LLM centralizadas em `LlmGateway` (teto de custo compartilhado entre Copywriter e Classificador).
+- Relatório dividido em várias mensagens quando passa do limite do Telegram.
+- Atalho `publish` roda `approvals → publish → preview`: o post refeito pelo Vigia de preço já sai como prévia na mesma execução.
+
 ## [0.3.0] · 2026-10-24: revisão geral e documentação
 
 ### Corrigido

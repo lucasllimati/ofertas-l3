@@ -81,6 +81,10 @@ class TelegramClient:
     def get_chat_member(self, chat_id: str, user_id: int) -> dict[str, Any]:
         return self._call("getChatMember", {"chat_id": chat_id, "user_id": user_id})
 
+    def send_document(self, chat_id: str, filename: str, content: bytes, caption: str = "") -> dict:
+        data = {"chat_id": chat_id, "caption": caption, "parse_mode": "HTML"}
+        return self._call("sendDocument", data, files={"document": (filename, content, "text/csv")})
+
     def edit_reply_markup(self, chat_id: str, message_id: str, reply_markup) -> Any:
         return self._call(
             "editMessageReplyMarkup",
@@ -151,6 +155,9 @@ class FakeTelegram:
             data = reply_markup["inline_keyboard"][0][0]["callback_data"]
             self.push_callback(data, msg["message_id"], chat_id)
         return msg
+
+    def send_document(self, chat_id, filename, content, caption=""):
+        return self._record("document", chat_id, filename=filename, caption=caption, size=len(content))
 
     def get_chat_member(self, chat_id, user_id):
         if str(chat_id) in self.fail_chats:

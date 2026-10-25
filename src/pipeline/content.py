@@ -7,11 +7,16 @@ import random
 from datetime import timedelta
 from typing import Any
 
+from src.agents.coupons import best_for
+from src.agents.insights import variant_for
+from src.agents.seasonal import scaled
+from src.agents.sentinel import recycle_picks
 from src.common.logging import get_logger
 from src.common.util import host_allowed, iso, short_id, slot_to_utc
 from src.config.models import Niche
 from src.content.brand import load_brand
 from src.content.caption import build_caption, compliance_issues
+from src.content.copy import CopyResult, TemplateCopywriter
 from src.context import AppContext
 from src.sources.base import allowed_domains
 
@@ -84,6 +89,69 @@ def affiliate_link(ctx: AppContext, niche: Niche, product: dict[str, Any], conte
     return product.get("affiliate_url") or product["product_url"]
 
 
+def coupon_for(ctx: AppContext, niche: Niche, product: dict[str, Any], price: float):
+    """Caçador de cupons: melhor cupom válido para o produto (ou None)."""
+    if not ctx.coupons:
+        return None
+    return best_for(ctx.coupons, niche, product["platform"], price, ctx.now)
+
+
+def make_caption(
+    ctx: AppContext,
+    niche: Niche,
+    copy: CopyResult,
+    price: float,
+    shown_original: float | None,
+    tracked: str,
+    coupon_code: str | None,
+) -> str:
+    brand = load_brand(niche)
+    badge = ctx.calendar.badge(ctx.run_date, niche.id) if ctx.calendar else None
+    coupon = next((c for c in ctx.coupons if c.code == coupon_code), None) if coupon_code else None
+    line = coupon.caption_line(niche.settings.timezone) if coupon else None
+    return build_caption(copy, price, shown_original, tracked, ctx.run_date, brand.get("hashtags", []), badge, line)
+
+
+def stored_copy(ctx: AppContext, niche: Niche, item: dict[str, Any], product: dict[str, Any]) -> CopyResult:
+    """Copy original do post (gravada na criação); posts antigos sem copy_json caem no template."""
+    if item.get("copy_json"):
+        return CopyResult.model_validate_json(item["copy_json"])
+    return TemplateCopywriter().write(product, niche, load_brand(niche), item.get("copy_variant") or "A")[0]
+
+
+def rebuild_for_price(ctx: AppContext, niche: Niche, item: dict[str, Any], new_price: float, reason: str) -> None:
+    """Vigia de preço: refaz legenda e arte com o preço novo e devolve o post para a sua aprovação."""
+    product = ctx.db.fetchone("SELECT * FROM product WHERE id = ?", (item["product_id"],)) or {}
+    priced = {**product, "price": new_price}
+    shown = verified_original(ctx, priced)
+    code = item.get("coupon_code")
+    coupon = next((c for c in ctx.coupons if c.code == code), None) if code else None
+    if coupon is None or not coupon.applies(product.get("platform", ""), niche.id, new_price):
+        code = None
+    copy = stored_copy(ctx, niche, item, product)
+    caption = make_caption(ctx, niche, copy, new_price, shown, item["tracked_url"], code)
+    ctx.db.execute(
+        "UPDATE content_item SET status = 'ready', caption = ?, price_at_creation = ?, price_original_shown = ?, "
+        "coupon_code = ?, media_file_id = NULL, preview_message_id = NULL, published_at = NULL, status_reason = ?, "
+        "updated_at = ? WHERE id = ?",
+        (caption, new_price, shown, code, reason, iso(ctx.now), item["id"]),
+    )
+
+
+def drop_expired_coupon(ctx: AppContext, niche: Niche, item: dict[str, Any]) -> str:
+    """Caçador de cupons: cupom venceu entre a aprovação e a publicação -> tira da legenda (mesmo preço)."""
+    product = ctx.db.fetchone("SELECT * FROM product WHERE id = ?", (item["product_id"],)) or {}
+    copy = stored_copy(ctx, niche, item, product)
+    caption = make_caption(
+        ctx, niche, copy, item["price_at_creation"], item.get("price_original_shown"), item["tracked_url"], None
+    )
+    ctx.db.execute(
+        "UPDATE content_item SET caption = ?, coupon_code = NULL, status_reason = ?, updated_at = ? WHERE id = ?",
+        (caption, "cupom vencido removido da legenda", iso(ctx.now), item["id"]),
+    )
+    return caption
+
+
 def create_content(ctx: AppContext, niche: Niche) -> dict[str, int]:
     settings = niche.settings
     day = ctx.run_date.isoformat()
@@ -91,15 +159,30 @@ def create_content(ctx: AppContext, niche: Niche) -> dict[str, int]:
         "SELECT count(*) FROM content_item WHERE niche_id = ? AND run_date = ? AND channel = ?",
         (niche.id, day, CHANNEL),
     )
-    wanted = settings.limits.new_content_per_day - int(existing or 0)
+    # Calendário sazonal: em evento ativo, mais posts no dia.
+    multiplier = ctx.calendar.multiplier(ctx.run_date, niche.id) if ctx.calendar else 1.0
+    wanted = scaled(settings.limits.new_content_per_day, multiplier) - int(existing or 0)
     if wanted <= 0:
         return {"created": 0, "skipped": 0}
 
-    picks = pick_products(eligible_products(ctx, niche), wanted, settings.exploration_rate, f"{niche.id}|{day}")
+    eligible = eligible_products(ctx, niche)
+    # Reciclador: campeões (já venderam) primeiro; o resto vem do topo + exploração.
+    recycled = recycle_picks(ctx, niche, eligible, wanted)
+    taken = {p["id"] for p, _ in recycled}
+    remaining = [p for p in eligible if p["id"] not in taken]
+    rest = pick_products(remaining, wanted - len(recycled), settings.exploration_rate, f"{niche.id}|{day}")
+    picks = recycled + rest
     brand = load_brand(niche)
     domains = allowed_domains()
-    created = skipped = 0
+    created = skipped = blocked = 0
     for i, (product, reason) in enumerate(picks):
+        # Classificador de conformidade (Haiku): barra proibidos que o filtro por palavra deixou passar.
+        if ctx.compliance:
+            allowed, why = ctx.compliance.allowed(ctx, niche, product)
+            if not allowed:
+                log.warning("produto barrado pela conformidade", extra={"data": {"product": product["id"], "why": why}})
+                blocked += 1
+                continue
         content_id = short_id(niche.id, product["id"], CHANNEL, day)
         link = affiliate_link(ctx, niche, product, content_id)
         if not host_allowed(link, domains):
@@ -110,16 +193,12 @@ def create_content(ctx: AppContext, niche: Niche) -> dict[str, int]:
         if ctx.redirect:
             tracked = ctx.redirect.register(content_id, link, niche.id, CHANNEL_CODE[CHANNEL])
 
-        copy, source = ctx.copywriter.write(product, niche, brand)
+        variant = variant_for(content_id, settings.agents.ab_test)  # Laboratório A/B
+        copy, source = ctx.copywriter.write(product, niche, brand, variant)
         shown_original = verified_original(ctx, product)
-        caption = build_caption(
-            copy,
-            product["price"],
-            shown_original,
-            tracked,
-            ctx.run_date,
-            brand.get("hashtags", []),
-        )
+        coupon = coupon_for(ctx, niche, product, product["price"])
+        code = coupon.code if coupon else None
+        caption = make_caption(ctx, niche, copy, product["price"], shown_original, tracked, code)
         link_ok = host_allowed(tracked, domains) or (
             ctx.redirect is not None and tracked.startswith(ctx.redirect.base_url)
         )
@@ -136,8 +215,8 @@ def create_content(ctx: AppContext, niche: Niche) -> dict[str, int]:
         inserted = ctx.db.execute(
             "INSERT INTO content_item (id, niche_id, product_id, channel, run_date, status, score, "
             "pick_reason, caption, copy_source, affiliate_url, tracked_url, price_at_creation, "
-            "price_original_shown, scheduled_for, created_at, updated_at) "
-            "VALUES (?, ?, ?, ?, ?, 'ready', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT DO NOTHING",
+            "price_original_shown, copy_json, copy_variant, coupon_code, scheduled_for, created_at, updated_at) "
+            "VALUES (?, ?, ?, ?, ?, 'ready', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT DO NOTHING",
             (
                 content_id,
                 niche.id,
@@ -152,10 +231,13 @@ def create_content(ctx: AppContext, niche: Niche) -> dict[str, int]:
                 tracked,
                 product["price"],
                 shown_original,
+                copy.model_dump_json(),
+                variant,
+                code,
                 iso(scheduled),
                 now,
                 now,
             ),
         )
         created += max(inserted, 0)
-    return {"created": created, "skipped": skipped}
+    return {"created": created, "skipped": skipped, "blocked": blocked, "recycled": len(recycled)}

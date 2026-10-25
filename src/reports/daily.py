@@ -1,11 +1,28 @@
-"""Relatório diário (Financeiro): consolidado e por nicho, no chat de admin."""
+"""Relatório diário (Financeiro) e as seções dos agentes de análise, no chat de admin.
+
+- todo dia: números por nicho + Calendário, Sentinela, Detector de links e Caçador de cupons;
+- domingo: Analista de mercado, Otimizador de horários e Laboratório A/B;
+- dia de fechamento (config/finance.yaml): Conciliador + Contador do mês anterior e o CSV."""
 
 from __future__ import annotations
 
 import html
 from datetime import timedelta
 from typing import Any
+from zoneinfo import ZoneInfo
 
+from src.agents.coupons import expiring
+from src.agents.finance import (
+    accountant_report,
+    is_closing_day,
+    load_finance,
+    previous_month,
+    reconcile_csv,
+    reconcile_report,
+)
+from src.agents.insights import ab_report, market_report, slots_report
+from src.agents.links import broken_lines
+from src.agents.sentinel import sentinel_lines
 from src.common.util import brl, iso, local_day_bounds_utc
 from src.context import AppContext
 
@@ -134,6 +151,75 @@ def security_events(ctx: AppContext) -> dict[str, int]:
     return {r["action"]: int(r["n"]) for r in sorted(rows, key=lambda r: r["action"])}
 
 
+def agents_section(ctx: AppContext) -> list[str]:
+    """Agentes diários: Calendário (aviso prévio), Sentinela, Detector de links e Caçador de cupons."""
+    lines: list[str] = []
+    if ctx.calendar:
+        today = ctx.now.astimezone(ZoneInfo(ctx.config.defaults.timezone)).date()
+        for event, days in ctx.calendar.upcoming(today):
+            lines.append(
+                f"📅 Em {days} dia(s): <b>{html.escape(event.name)}</b> ({event.start.strftime('%d/%m')}). "
+                "Prepare ofertas de ML/Amazon no CSV e cupons em config/coupons.csv."
+            )
+        for niche in ctx.niches():
+            active = ctx.calendar.active(today, niche.id)
+            if active:
+                names = ", ".join(e.name for e in active)
+                lines.append(f"🏷 {html.escape(niche.name)}: em {html.escape(names)} (mais posts e selo na arte).")
+    lines += sentinel_lines(ctx)
+    lines += broken_lines(ctx)
+    if ctx.coupons:
+        for c in expiring(ctx.coupons, ctx.now):
+            lines.append(f"🎟 Cupom {html.escape(c.code)} ({c.platform}) vence em menos de 24 h.")
+    return (["<b>🧭 Agentes</b>", *lines]) if lines else []
+
+
+def weekly_section(ctx: AppContext) -> list[str]:
+    """Domingo: Analista de mercado, Otimizador de horários e Laboratório A/B."""
+    lines = market_report(ctx)
+    for niche in ctx.niches():
+        lines += ["", *slots_report(ctx, niche)]
+    ab = ab_report(ctx)
+    if ab:
+        lines += ["", *ab]
+    return lines
+
+
+def chunks(lines: list[str], limit: int = 3900) -> list[str]:
+    """Divide em mensagens de até ~4.000 caracteres (limite do Telegram), sem cortar linhas."""
+    out, current = [], ""
+    for line in lines:
+        if current and len(current) + len(line) + 1 > limit:
+            out.append(current)
+            current = ""
+        current = f"{current}\n{line}" if current else line
+    if current:
+        out.append(current)
+    return out
+
+
+def send_monthly_close(ctx: AppContext, month: str | None = None) -> dict[str, int]:
+    """Conciliador + Contador do mês (padrão: mês anterior) e o CSV para a contabilidade."""
+    ym = month or previous_month(ctx)
+    cfg = load_finance()
+    lines = [*reconcile_report(ctx, ym, cfg), "", *accountant_report(ctx, ym, cfg)]
+    for text in chunks(lines):
+        ctx.telegram.send_message(ctx.admin_chat_id, text)
+    ctx.telegram.send_document(
+        ctx.admin_chat_id, f"fechamento-{ym}.csv", reconcile_csv(ctx, ym, cfg), f"Fechamento {ym} (para o contador)"
+    )
+    return {"month_closed": 1}
+
+
 def send_report(ctx: AppContext) -> dict[str, int]:
-    ctx.telegram.send_message(ctx.admin_chat_id, build_report(ctx))
-    return {"sent": 1}
+    messages = [build_report(ctx)]
+    extra = agents_section(ctx)
+    if extra:
+        messages += chunks(extra)
+    local = ctx.now.astimezone(ZoneInfo(ctx.config.defaults.timezone))
+    if local.weekday() == 6:  # domingo
+        messages += chunks(weekly_section(ctx))
+    for text in messages:
+        ctx.telegram.send_message(ctx.admin_chat_id, text)
+    closed = send_monthly_close(ctx)["month_closed"] if is_closing_day(ctx) else 0
+    return {"sent": len(messages), "month_closed": closed}

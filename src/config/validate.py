@@ -18,6 +18,35 @@ from src.common import secrets
 from src.config.loader import SCHEMA_PATH, generate_schema, load_config, write_schema
 
 
+def agent_config_problems(config) -> list[str]:
+    """Confere os arquivos editados à mão pelos agentes: calendário, cupons e finanças."""
+    from src.agents.coupons import COUPONS_PATH, parse_coupons
+    from src.agents.finance import load_finance
+    from src.agents.seasonal import load_calendar
+
+    problems: list[str] = []
+    known = {n.id for n in config.niches}
+    try:
+        calendar = load_calendar()
+        for event in calendar.events:
+            unknown = (set(event.niches) | set(event.extra_keywords)) - known
+            if unknown:
+                problems.append(f"calendar.yaml: evento {event.id} cita nichos inexistentes {sorted(unknown)}")
+    except (ValidationError, ValueError) as exc:
+        problems.append(f"calendar.yaml: {exc}")
+    if COUPONS_PATH.exists():
+        coupons, errors = parse_coupons(COUPONS_PATH.read_text(encoding="utf-8-sig"), config.defaults.timezone)
+        problems += [f"coupons.csv {e}" for e in errors]
+        for c in coupons:
+            if set(c.niches) - known:
+                problems.append(f"coupons.csv: cupom {c.code} cita nichos inexistentes")
+    try:
+        load_finance()
+    except (ValidationError, ValueError, OSError) as exc:
+        problems.append(f"finance.yaml: {exc}")
+    return problems
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", default=None)
@@ -34,6 +63,12 @@ def main(argv: list[str] | None = None) -> int:
 
     active = [n.id for n in config.niches if n.is_active]
     print(f"config ok: {len(config.niches)} nichos, ativos: {', '.join(active) or 'nenhum'}")
+
+    problems = agent_config_problems(config)
+    if problems:
+        print("configuração dos agentes inválida:\n" + "\n".join(f"- {p}" for p in problems), file=sys.stderr)
+        return 1
+    print("agentes ok: calendar.yaml, coupons.csv e finance.yaml")
 
     if args.write_schema:
         write_schema()

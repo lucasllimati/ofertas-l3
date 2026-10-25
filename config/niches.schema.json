@@ -1,5 +1,49 @@
 {
   "$defs": {
+    "AgentSettings": {
+      "additionalProperties": false,
+      "properties": {
+        "price_guard": {
+          "$ref": "#/$defs/PriceGuard",
+          "default": {
+            "enabled": true,
+            "tolerance_pct": 2.0
+          }
+        },
+        "recycle": {
+          "$ref": "#/$defs/Recycle",
+          "default": {
+            "enabled": true,
+            "max_share": 0.2,
+            "lookback_days": 60
+          }
+        },
+        "sentinel": {
+          "$ref": "#/$defs/Sentinel",
+          "default": {
+            "winner_multiplier": 2.0,
+            "min_clicks": 20
+          }
+        },
+        "compliance_llm": {
+          "default": true,
+          "title": "Compliance Llm",
+          "type": "boolean"
+        },
+        "ab_test": {
+          "default": true,
+          "title": "Ab Test",
+          "type": "boolean"
+        },
+        "broken_links": {
+          "default": true,
+          "title": "Broken Links",
+          "type": "boolean"
+        }
+      },
+      "title": "AgentSettings",
+      "type": "object"
+    },
     "Channels": {
       "additionalProperties": false,
       "properties": {
@@ -419,6 +463,17 @@
             }
           ],
           "default": null
+        },
+        "agents": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AgentSettings"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         }
       },
       "required": [
@@ -526,6 +581,27 @@
             "copy_model": "claude-sonnet-5-5",
             "review_model": "claude-haiku-5-5"
           }
+        },
+        "agents": {
+          "$ref": "#/$defs/AgentSettings",
+          "default": {
+            "price_guard": {
+              "enabled": true,
+              "tolerance_pct": 2.0
+            },
+            "recycle": {
+              "enabled": true,
+              "lookback_days": 60,
+              "max_share": 0.2
+            },
+            "sentinel": {
+              "min_clicks": 20,
+              "winner_multiplier": 2.0
+            },
+            "compliance_llm": true,
+            "ab_test": true,
+            "broken_links": true
+          }
         }
       },
       "title": "NicheSettings",
@@ -602,6 +678,53 @@
       "title": "PostsPerDay",
       "type": "object"
     },
+    "PriceGuard": {
+      "additionalProperties": false,
+      "description": "Vigia de preço e estoque: reconsulta o produto antes de publicar.",
+      "properties": {
+        "enabled": {
+          "default": true,
+          "title": "Enabled",
+          "type": "boolean"
+        },
+        "tolerance_pct": {
+          "default": 2.0,
+          "maximum": 50,
+          "minimum": 0,
+          "title": "Tolerance Pct",
+          "type": "number"
+        }
+      },
+      "title": "PriceGuard",
+      "type": "object"
+    },
+    "Recycle": {
+      "additionalProperties": false,
+      "description": "Reciclador: devolve à pauta produtos que já venderam, depois do cooldown.",
+      "properties": {
+        "enabled": {
+          "default": true,
+          "title": "Enabled",
+          "type": "boolean"
+        },
+        "max_share": {
+          "default": 0.2,
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Max Share",
+          "type": "number"
+        },
+        "lookback_days": {
+          "default": 60,
+          "maximum": 365,
+          "minimum": 7,
+          "title": "Lookback Days",
+          "type": "integer"
+        }
+      },
+      "title": "Recycle",
+      "type": "object"
+    },
     "ScoreWeights": {
       "additionalProperties": false,
       "properties": {
@@ -643,6 +766,26 @@
         }
       },
       "title": "ScoreWeights",
+      "type": "object"
+    },
+    "Sentinel": {
+      "additionalProperties": false,
+      "description": "Sentinela: destaca posts muito acima (ou sem nenhum resultado) da média do nicho.",
+      "properties": {
+        "winner_multiplier": {
+          "default": 2.0,
+          "minimum": 1,
+          "title": "Winner Multiplier",
+          "type": "number"
+        },
+        "min_clicks": {
+          "default": 20,
+          "minimum": 0,
+          "title": "Min Clicks",
+          "type": "integer"
+        }
+      },
+      "title": "Sentinel",
       "type": "object"
     },
     "ShopeePlatform": {

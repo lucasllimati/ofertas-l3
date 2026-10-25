@@ -13,12 +13,16 @@ from __future__ import annotations
 import html
 from datetime import timedelta
 
-from src.approval import audit, render_for
+from src.agents import price_guard
+from src.agents.coupons import still_valid
+from src.agents.seasonal import scaled
+from src.approval import audit, product_for, render_for
 from src.common.logging import get_logger
 from src.common.telegram import TelegramError
 from src.common.util import iso, local_day_bounds_utc, local_today
 from src.config.models import Niche
 from src.context import AppContext
+from src.pipeline.content import drop_expired_coupon, rebuild_for_price
 
 log = get_logger(__name__)
 
@@ -85,7 +89,10 @@ def publish_niche(ctx: AppContext, niche: Niche) -> dict[str, int]:
         )
         or 0
     )
-    budget = niche.settings.limits.posts_per_day.telegram - published_today
+    daily_limit = niche.settings.limits.posts_per_day.telegram
+    if ctx.calendar:  # Calendário sazonal: o limite de publicação acompanha o volume do evento
+        daily_limit = scaled(daily_limit, ctx.calendar.multiplier(local_today(tz, ctx.now), niche.id))
+    budget = daily_limit - published_today
     if budget <= 0:
         return {"published": 0, "expired": expired}
 
@@ -95,6 +102,7 @@ def publish_niche(ctx: AppContext, niche: Niche) -> dict[str, int]:
         (niche.id, CHANNEL, iso(ctx.now)),
     )
     published = 0
+    guarded: list[str] = []
     failures = int(state["consecutive_failures"])
     for item in due[:budget]:
         claimed = ctx.db.execute(
@@ -104,6 +112,29 @@ def publish_niche(ctx: AppContext, niche: Niche) -> dict[str, int]:
         )
         if claimed != 1:
             continue
+        # Vigia de preço e estoque: reconsulta logo antes de enviar.
+        guard = niche.settings.agents.price_guard
+        if guard.enabled:
+            decision = price_guard.check(
+                ctx.price_checker, product_for(ctx, item["product_id"]), item["price_at_creation"], guard.tolerance_pct
+            )
+            if decision.action == "unavailable":
+                ctx.db.execute(
+                    "UPDATE content_item SET status = 'unavailable', published_at = NULL, status_reason = ?, "
+                    "updated_at = ? WHERE id = ?",
+                    (decision.reason, iso(ctx.now), item["id"]),
+                )
+                audit(ctx, "system", "price_guard_unavailable", item["id"], {"reason": decision.reason})
+                guarded.append(f"⛔ post {item['id']}: {decision.reason}. Não publicado.")
+                continue
+            if decision.action == "reapprove":
+                rebuild_for_price(ctx, niche, item, decision.new_price, decision.reason)
+                audit(ctx, "system", "price_guard_reapprove", item["id"], {"reason": decision.reason})
+                guarded.append(f"🔁 post {item['id']}: {decision.reason}. Nova prévia para reaprovar.")
+                continue
+        # Caçador de cupons: cupom venceu depois da aprovação -> sai da legenda, post segue.
+        if item.get("coupon_code") and not still_valid(ctx.coupons, item["coupon_code"], ctx.now):
+            item = {**item, "caption": drop_expired_coupon(ctx, niche, item)}
         try:
             photo = item["media_file_id"] or render_for(ctx, niche, item)
         except Exception:
@@ -152,4 +183,7 @@ def publish_niche(ctx: AppContext, niche: Niche) -> dict[str, int]:
         failures = 0
         _set_failures(ctx, niche.id, 0, False)
         published += 1
-    return {"published": published, "expired": expired}
+    if guarded:  # um aviso só com tudo que o Vigia de preço segurou nesta execução
+        body = "\n".join(html.escape(g) for g in guarded)
+        alert(ctx, f"{html.escape(niche.name)} · Vigia de preço:\n{body}")
+    return {"published": published, "expired": expired, "price_guard": len(guarded)}

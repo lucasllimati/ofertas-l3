@@ -21,14 +21,15 @@ Para o Worker: `cd worker && npm ci --ignore-scripts && npm test`.
 | [src/run.py](../src/run.py) | Entrada: lê argumentos, monta o contexto, expande atalhos (`daily`, `publish`, `report`, `all`) e roda os passos com falha isolada por nicho |
 | [src/context.py](../src/context.py) | `AppContext`: tudo que um passo recebe (config, banco, data, relógio, clientes externos) |
 | [src/config/](../src/config/) | Modelos Pydantic do `niches.yaml`, merge de defaults, validador e JSON Schema |
-| [src/common/](../src/common/) | Banco (Postgres/SQLite), logging com redação, cliente do Telegram, segredos, utilitários |
+| [src/common/](../src/common/) | Banco (Postgres/SQLite), logging com redação, cliente do Telegram, segredos, `LlmGateway` (teto de custo e registro de toda chamada de LLM), utilitários |
 | [src/sources/](../src/sources/) | Fontes de ofertas: Shopee API, CSV manual, fonte falsa |
 | [src/pipeline/](../src/pipeline/) | Rastreador (`ingest`), Analista (`transform`, `score`), Editor de pauta (`content`) |
 | [src/content/](../src/content/) | Marca, copy (template/LLM), legenda e regras, arte |
 | [src/approval.py](../src/approval.py), [src/commands.py](../src/commands.py) | Porteiro: prévias, botões, respostas e comandos |
 | [src/publishers/](../src/publishers/) | Publicador do Telegram |
 | [src/tracking/](../src/tracking/) | Cloudflare (KV/D1), cliques e conversões |
-| [src/reports/](../src/reports/) | Relatório diário |
+| [src/reports/](../src/reports/) | Relatório diário, seção semanal (domingo) e fechamento mensal |
+| [src/agents/](../src/agents/) | Agentes 13 a 23: `seasonal` (calendário), `price_guard`, `compliance`, `coupons`, `sentinel` (Sentinela + Reciclador), `links`, `insights` (mercado, horários, A/B), `finance` (Conciliador + Contador). Recebem `AppContext`; as dependências externas (consulta de preço, checagem de link, LLM) chegam pelo contexto, montadas em `agent_wiring` ([run.py](../src/run.py)) |
 | [src/backup.py](../src/backup.py) | Backup e restauração |
 | [worker/](../worker/) | Redirecionador `/go` (TypeScript, Cloudflare) |
 | [scripts/](../scripts/) | Checagem de workflows, inventário de segredos, restauração de backup |
@@ -70,7 +71,7 @@ Linha de até 120 colunas, `ruff` para lint e formatação. Links internos da do
 ## Tarefas comuns
 
 ### Adicionar um passo ou agente
-1. Função `def meu_passo(ctx: AppContext, niche: Niche) -> dict` (ou sem `niche`, se for global) em `src/<área>/`.
+1. Função `def meu_passo(ctx: AppContext, niche: Niche) -> dict` (ou sem `niche`, se for global) em `src/agents/` ou na área certa. Configuração por nicho vai em `AgentSettings` ([config/models.py](../src/config/models.py), bloco `agents:` do YAML; rode `--write-schema`); arquivo próprio em `config/` precisa de validação em `agent_config_problems` ([config/validate.py](../src/config/validate.py)).
 2. Registre em `build_steps` ([src/run.py](../src/run.py)); se for por nicho, use `per_niche(fn, ACTIVE)` ou `MONITORED`.
 3. Inclua no atalho certo em `ALIASES` ou crie um cron no `garimpo.yml`. Se criar cron, ajuste o `case` que escolhe o passo pelo texto do cron.
 4. Retorne um dict pequeno com contagens: ele vai para o log e para `pipeline_run`.
@@ -108,6 +109,7 @@ TEST_DATABASE_URL=postgresql://postgres:x@localhost:5432/postgres REQUIRE_POSTGR
 | `test_tracking_report.py` | Cliques, conversões, relatório, KV |
 | `test_hardening.py`, `test_security.py` | Revisão de segurança, RLS e permissões (Postgres), backup, workflows |
 | `test_operation.py` | Healthcheck dos canais, alertas, CSV de vendas, falhas do publicador |
+| `test_agents.py` | Agentes 13 a 23: calendário, vigia de preço, conformidade, cupons, sentinela/reciclador, links, insights, imposto, fechamento e comandos |
 | `test_run.py` | Atalhos, segredos ausentes, demo ponta a ponta |
 | `worker/test/` | Redirecionador: open redirect, robôs, rate limit |
 

@@ -45,7 +45,8 @@ ALIASES = {
         "preview",
         "clicks",
     ],
-    "publish": ["approvals", "publish"],
+    # preview no fim: posts que o Vigia de preço devolveu para reaprovação saem na mesma execução
+    "publish": ["approvals", "publish", "preview"],
     "report": ["approvals", "clicks", "conversions", "report"],
 }
 ALIASES["all"] = ALIASES["daily"] + ALIASES["publish"] + ALIASES["report"]  # o dia inteiro (demo)
@@ -115,7 +116,7 @@ def build_steps(args: argparse.Namespace) -> dict[str, Any]:
     from src.pipeline.score import score_niche
     from src.pipeline.transform import transform
     from src.publishers.telegram import publish_niche
-    from src.reports.daily import send_report
+    from src.reports.daily import send_monthly_close, send_report
     from src.tracking.sync import import_conversions_csv, sync_clicks, sync_conversions
 
     def conversions(ctx: AppContext) -> dict:
@@ -140,6 +141,7 @@ def build_steps(args: argparse.Namespace) -> dict[str, Any]:
         "conversions": conversions,
         "report": send_report,
         "backup": export_backup,
+        "close": lambda ctx: send_monthly_close(ctx, args.month),
     }
 
 
@@ -197,6 +199,22 @@ def run_steps(ctx: AppContext, steps: list[str], registry: dict[str, Any], only_
     return failures
 
 
+def agent_wiring(config: AppConfig, price_source: Any, llm: Any, link_checker: Any) -> dict[str, Any]:
+    """Liga os agentes que dependem de configuração ou de clientes externos (docs/agentes.md)."""
+    from src.agents.compliance import ComplianceClassifier
+    from src.agents.coupons import load_coupons
+    from src.agents.price_guard import ShopeePriceChecker
+    from src.agents.seasonal import load_calendar
+
+    return {
+        "calendar": load_calendar(),
+        "price_checker": ShopeePriceChecker(price_source) if price_source is not None else None,
+        "link_checker": link_checker,
+        "compliance": ComplianceClassifier(llm),
+        "coupons": load_coupons(config.defaults.timezone),
+    }
+
+
 def build_context(args: argparse.Namespace, config: AppConfig) -> AppContext:
     from src.content.copy import LlmCopywriter, TemplateCopywriter
 
@@ -222,6 +240,7 @@ def build_context(args: argparse.Namespace, config: AppConfig) -> AppContext:
         fake = FakeShopee(run_date)
         db = Database(env["DATABASE_URL"])
         return AppContext(
+            **agent_wiring(config, price_source=fake, llm=None, link_checker=None),
             config=config,
             db=db,
             run_date=run_date,
@@ -269,7 +288,10 @@ def build_context(args: argparse.Namespace, config: AppConfig) -> AppContext:
         base = env.get("REDIRECT_BASE_URL", "").strip()
         if base.startswith("https://"):
             redirect = RedirectRegistry(api, env["CF_KV_NAMESPACE_ID"], base)
+    from src.agents.links import http_link_ok
+
     return AppContext(
+        **agent_wiring(config, price_source=shopee, llm=getattr(copywriter, "llm", None), link_checker=http_link_ok),
         config=config,
         db=db,
         run_date=run_date,
@@ -297,6 +319,7 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
     p.add_argument("--demo", action="store_true", help="SQLite + Shopee e Telegram falsos")
     p.add_argument("--no-notify", dest="notify", action="store_false", help="healthcheck sem mensagem de teste")
     p.add_argument("--import-conversions", help="CSV de conversões (ML/Amazon) para o passo conversions")
+    p.add_argument("--month", help="AAAA-MM para o passo close (padrão: mês anterior)")
     return p.parse_args(argv)
 
 
