@@ -87,7 +87,14 @@ def _wrap(draw: ImageDraw.ImageDraw, text: str, fnt, max_width: int, max_lines: 
     return lines
 
 
-def render_post(product: dict[str, Any], brand: dict[str, Any], price_date: date, image_bytes: bytes | None) -> bytes:
+def render_post(
+    product: dict[str, Any],
+    brand: dict[str, Any],
+    price_date: date,
+    image_bytes: bytes | None,
+    badge: str | None = None,
+) -> bytes:
+    """`badge`: selo do evento sazonal ativo (agente Calendário), desenhado no canto da foto."""
     colors = brand.get("colors", {})
     bg = colors.get("background", "#FFFFFF")
     text_color = colors.get("text", "#111111")
@@ -131,6 +138,12 @@ def render_post(product: dict[str, Any], brand: dict[str, Any], price_date: date
         fnt = font(60, True, f_bold)
         w = draw.textlength(label, font=fnt)
         draw.text((bx + 100 - w / 2, by + 64), label, font=fnt, fill=badge_text)
+
+    if badge:
+        fnt = font(34, True, f_bold)
+        w = draw.textlength(badge, font=fnt)
+        draw.rounded_rectangle((x0 + 24, y0 + 24, x0 + 56 + w, y0 + 84), radius=18, fill=text_color)
+        draw.text((x0 + 40, y0 + 34), badge, font=fnt, fill=bg)
 
     y = y1 + 40
     title_font = font(46, True, f_bold)

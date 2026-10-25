@@ -78,6 +78,16 @@ def parse_money(value: str | None) -> float:
         raise ValueError(f"valor inválido: {value!r}") from None
 
 
+def pct(value: float, digits: int = 1) -> str:
+    """Formata 0.155 -> '15,5%' (vírgula decimal, como no resto das mensagens)."""
+    return f"{value:.{digits}%}".replace(".", ",")
+
+
+def dec(value: float, digits: int = 1) -> str:
+    """Formata 2.5 -> '2,5'."""
+    return f"{value:.{digits}f}".replace(".", ",")
+
+
 def brl(value: float) -> str:
     """Formata 1234.5 -> 'R$ 1.234,50'."""
     text = f"{value:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")

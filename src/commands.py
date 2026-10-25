@@ -3,8 +3,12 @@
 from __future__ import annotations
 
 import html
+import re
 from typing import Any
 
+from src.agents.coupons import valid_for_niche
+from src.agents.finance import accountant_report, current_month, load_finance, previous_month
+from src.agents.insights import market_report, slots_report
 from src.approval import audit
 from src.common.util import brl, iso
 from src.context import AppContext
@@ -14,8 +18,14 @@ HELP = (
     "/status: fila de conteúdo por nicho\n"
     "/top &lt;nicho&gt;: 10 melhores produtos do dia\n"
     "/pausar &lt;nicho&gt; &lt;canal&gt;: para de publicar\n"
-    "/retomar &lt;nicho&gt; &lt;canal&gt;: volta a publicar"
+    "/retomar &lt;nicho&gt; &lt;canal&gt;: volta a publicar\n"
+    "/imposto [AAAA-MM]: Contador (imposto estimado, como dividir o dinheiro, riscos)\n"
+    "/fechamento [AAAA-MM]: Conciliador + Contador e o CSV para a contabilidade\n"
+    "/mercado: Analista de mercado (qual nicho ativar)\n"
+    "/horarios &lt;nicho&gt;: Otimizador de horários\n"
+    "/cupons: cupons válidos agora"
 )
+MONTH_RE = re.compile(r"^\d{4}-(0[1-9]|1[0-2])$")
 CHANNELS = {"telegram", "instagram", "tiktok"}
 
 
@@ -57,6 +67,16 @@ def top_text(ctx: AppContext, niche_id: str) -> str:
     return f"<b>Top {html.escape(niche_id)}</b>\n{body}"
 
 
+def coupons_text(ctx: AppContext) -> str:
+    lines = ["<b>🎟 Cupons válidos agora</b>"]
+    for niche in ctx.niches():
+        for c in valid_for_niche(ctx.coupons, niche, ctx.now):
+            lines.append(f"{html.escape(niche.name)}: {c.caption_line(niche.settings.timezone)}")
+    if len(lines) == 1:
+        lines.append("Nenhum. Cole cupons em config/coupons.csv.")
+    return "\n".join(lines)
+
+
 def handle_command(ctx: AppContext, message: dict[str, Any]) -> bool:
     text = (message.get("text") or "").strip()
     user_id = (message.get("from") or {}).get("id")
@@ -69,8 +89,22 @@ def handle_command(ctx: AppContext, message: dict[str, Any]) -> bool:
     parts = text.split()
     cmd = parts[0].split("@")[0].lower()
     known = {n.id for n in ctx.config.niches}
+    month = parts[1] if len(parts) == 2 and MONTH_RE.match(parts[1]) else None
     reply: str
-    if cmd == "/status":
+    if cmd == "/fechamento":
+        from src.reports.daily import send_monthly_close  # import tardio: o relatório importa este módulo
+
+        send_monthly_close(ctx, month or previous_month(ctx))
+        return True
+    if cmd == "/imposto":
+        reply = "\n".join(accountant_report(ctx, month or current_month(ctx), load_finance()))
+    elif cmd == "/mercado":
+        reply = "\n".join(market_report(ctx))
+    elif cmd == "/horarios" and len(parts) == 2 and parts[1] in known:
+        reply = "\n".join(slots_report(ctx, ctx.config.niche(parts[1])))
+    elif cmd == "/cupons":
+        reply = coupons_text(ctx)
+    elif cmd == "/status":
         reply = status_text(ctx)
     elif cmd == "/top" and len(parts) == 2 and parts[1] in known:
         reply = top_text(ctx, parts[1])

@@ -1,0 +1,67 @@
+# Calendário sazonal (agente Calendário: docs/agentes.md).
+# Num evento ativo: palavras-chave extras na coleta, mais posts por dia (content_multiplier,
+# vale também para o limite de publicação) e selo na arte/legenda. O relatório avisa
+# heads_up_days antes, para você preparar ofertas de ML/Amazon no CSV.
+# niches vazio = todos os nichos ativos. Datas inclusivas, horário de Brasília.
+version: 1
+
+events:
+  - id: shopee-11-11-2026
+    name: "11.11 Shopee"
+    start: 2026-11-10
+    end: 2026-11-11
+    content_multiplier: 1.5
+    badge: "11.11"
+    heads_up_days: 5
+
+  - id: esquenta-black-friday-2026
+    name: Esquenta Black Friday
+    start: 2026-11-20
+    end: 2026-11-26
+    content_multiplier: 1.5
+    badge: "Esquenta Black Friday"
+    heads_up_days: 10
+    extra_keywords:
+      casa: [air fryer, jogo de panelas, aspirador robô, organizador cozinha kit]
+      pet: [kit pet, cama pet grande, comedouro automático]
+
+  - id: black-friday-2026
+    name: Black Friday e Cyber Monday
+    start: 2026-11-27
+    end: 2026-11-30
+    content_multiplier: 2.0
+    badge: "Black Friday"
+    heads_up_days: 14
+    extra_keywords:
+      casa: [air fryer, jogo de panelas, aspirador robô, liquidificador, cafeteira]
+      pet: [comedouro automático, fonte água gato, arranhador grande, transporte pet]
+
+  - id: shopee-12-12-2026
+    name: "12.12 Shopee"
+    start: 2026-12-11
+    end: 2026-12-12
+    content_multiplier: 1.5
+    badge: "12.12"
+    heads_up_days: 5
+
+  - id: natal-2026
+    name: Natal
+    start: 2026-12-01
+    end: 2026-12-22
+    content_multiplier: 1.3
+    badge: "Presente de Natal"
+    heads_up_days: 7
+    extra_keywords:
+      casa: [kit presente cozinha, luminária decorativa, pisca pisca led]
+      pet: [roupa natal pet, brinquedo pet presente]
+
+  - id: dia-das-maes-2027
+    name: Dia das Mães
+    start: 2027-04-26
+    end: 2027-05-09
+    niches: [casa]
+    content_multiplier: 1.3
+    badge: "Dia das Mães"
+    heads_up_days: 10
+    extra_keywords:
+      casa: [presente dia das mães, kit cozinha presente, organizador maquiagem]

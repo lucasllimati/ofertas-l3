@@ -64,6 +64,37 @@ class LlmSettings(Strict):
     review_model: str = "claude-haiku-5-5"
 
 
+class PriceGuard(Strict):
+    """Vigia de preço e estoque: reconsulta o produto antes de publicar."""
+
+    enabled: bool = True
+    tolerance_pct: float = Field(2.0, ge=0, le=50)  # diferença aceita entre o preço do post e o atual
+
+
+class Recycle(Strict):
+    """Reciclador: devolve à pauta produtos que já venderam, depois do cooldown."""
+
+    enabled: bool = True
+    max_share: float = Field(0.2, ge=0, le=1)  # fração dos posts do dia reservada a campeões
+    lookback_days: int = Field(60, ge=7, le=365)
+
+
+class Sentinel(Strict):
+    """Sentinela: destaca posts muito acima (ou sem nenhum resultado) da média do nicho."""
+
+    winner_multiplier: float = Field(2.0, ge=1)
+    min_clicks: int = Field(20, ge=0)
+
+
+class AgentSettings(Strict):
+    price_guard: PriceGuard = PriceGuard()
+    recycle: Recycle = Recycle()
+    sentinel: Sentinel = Sentinel()
+    compliance_llm: bool = True  # Classificador de conformidade (Claude Haiku), se houver chave
+    ab_test: bool = True  # Laboratório A/B de copy
+    broken_links: bool = True  # Detector de link quebrado
+
+
 class NicheSettings(Strict):
     """Campos que existem em `defaults` e podem ser sobrescritos por nicho."""
 
@@ -77,6 +108,7 @@ class NicheSettings(Strict):
     score_weights: ScoreWeights = ScoreWeights()
     coupons: Coupons = Coupons()
     llm: LlmSettings = LlmSettings()
+    agents: AgentSettings = AgentSettings()
 
     @field_validator("publish_slots")
     @classmethod

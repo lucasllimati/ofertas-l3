@@ -33,6 +33,12 @@ class AppContext:
     image_fetcher: Any = None  # Callable[[str], bytes | None]
     redirect: Any = None  # RedirectRegistry | None
     clicks_source: Any = None  # ClickSource | None
+    # Agentes (docs/agentes.md). None/vazio = agente desligado, o fluxo segue sem ele.
+    calendar: Any = None  # agents.seasonal.Calendar
+    price_checker: Any = None  # agents.price_guard.PriceChecker (Vigia de preço, Detector de links)
+    link_checker: Any = None  # Callable[[str], bool | None] (Detector de links, lojas sem API)
+    compliance: Any = None  # agents.compliance.ComplianceClassifier
+    coupons: list[Any] = field(default_factory=list)  # agents.coupons.Coupon
     env: dict[str, str] = field(default_factory=lambda: dict(os.environ))
     out_dir: Path = ROOT / "out"
     demo: bool = False

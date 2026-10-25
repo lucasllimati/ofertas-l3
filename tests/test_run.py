@@ -8,7 +8,7 @@ from src.run import ALIASES, build_steps, expand_steps, main, parse_args
 
 def test_expand_steps_aliases():
     registry = build_steps(parse_args(["--steps", "daily"]))
-    assert expand_steps("publish", registry) == ["migrate", "approvals", "publish"]
+    assert expand_steps("publish", registry) == ["migrate", "approvals", "publish", "preview"]
     full = expand_steps("all", registry)
     assert full.count("approvals") == 3  # roda de novo depois das prévias
     assert full[0] == "migrate"

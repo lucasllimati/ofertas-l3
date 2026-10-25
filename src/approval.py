@@ -79,7 +79,9 @@ def render_for(ctx: AppContext, niche: Niche, item: dict[str, Any]) -> bytes:
     product["price"] = item["price_at_creation"]
     product["price_original"] = item.get("price_original_shown")
     image = ctx.image_fetcher(product.get("image_url")) if ctx.image_fetcher else None
-    png = render_post(product, load_brand(niche), date.fromisoformat(item["run_date"]), image)
+    day = date.fromisoformat(item["run_date"])
+    badge = ctx.calendar.badge(day, niche.id) if ctx.calendar else None  # selo do Calendário sazonal
+    png = render_post(product, load_brand(niche), day, image, badge)
     if ctx.demo:
         path = ctx.out_dir / "media" / item["run_date"] / niche.id / f"{item['id']}.png"
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -98,10 +100,16 @@ def send_previews(ctx: AppContext, niche: Niche) -> dict[str, int]:
         png = render_for(ctx, niche, item)
         auto_ok = settings.approval == "auto_above_score" and item["score"] >= settings.auto_approve_min_score
         local_slot = parse_iso(item["scheduled_for"]).astimezone(ZoneInfo(settings.timezone)).strftime("%d/%m %H:%M")
+        extras = [f"🧪 variante {item['copy_variant']}"] if item.get("copy_variant") else []
+        if item.get("coupon_code"):
+            extras.append(f"🎟 {html.escape(item['coupon_code'])}")
         header = (
             f"<b>[{html.escape(niche.name)}]</b> score {item['score']:.2f} · {item['pick_reason']} · "
             f"{'copy LLM' if item['copy_source'] == 'llm' else 'copy template'} · slot {local_slot}\n"
-            f"{'🤖 autoaprovado' if auto_ok else 'Aprovar para publicar no canal:'}\n\n"
+            + (" · ".join(extras) + "\n" if extras else "")
+            # Vigia de preço: post devolvido para reaprovação mostra o motivo no topo.
+            + (f"🔁 <b>{html.escape(item['status_reason'])}</b>\n" if item.get("status_reason") else "")
+            + f"{'🤖 autoaprovado' if auto_ok else 'Aprovar para publicar no canal:'}\n\n"
         )
         caption = header + item["caption"]
         if len(caption) > 1024:

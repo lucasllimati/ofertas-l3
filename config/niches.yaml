@@ -39,6 +39,20 @@ defaults:
     enabled: true                       # sem ANTHROPIC_API_KEY o sistema usa copy de template
     copy_model: claude-sonnet-5-5       # intermediário: copy
     review_model: claude-haiku-5-5      # pequeno: revisão/classificação
+  agents:                               # docs/agentes.md
+    price_guard:                        # Vigia de preço e estoque (antes de publicar)
+      enabled: true
+      tolerance_pct: 2                  # preço mudou mais que isso -> volta para sua reaprovação
+    recycle:                            # Reciclador de campeões (depois do cooldown)
+      enabled: true
+      max_share: 0.20                   # até 20% dos posts do dia
+      lookback_days: 60
+    sentinel:                           # Sentinela (relatório)
+      winner_multiplier: 2.0            # "campeão" = 2x a média do nicho
+      min_clicks: 20
+    compliance_llm: true                # Classificador de conformidade (Haiku), se houver ANTHROPIC_API_KEY
+    ab_test: true                       # Laboratório A/B de copy
+    broken_links: true                  # Detector de link quebrado
 
 niches:
   - id: casa

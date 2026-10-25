@@ -10,7 +10,7 @@ Sistema de afiliados multi-nicho. Todo dia ele:
 
 **Comece por aqui:** [índice da documentação](docs/README.md) · [guia de configuração](docs/SETUP.md) · [agentes](docs/agentes.md) · [arquitetura e negócio](ARQUITETURA.md).
 
-## O que já funciona (v0.3)
+## O que já funciona (v0.4)
 
 | Parte | Estado |
 |---|---|
@@ -21,14 +21,21 @@ Sistema de afiliados multi-nicho. Todo dia ele:
 | Copy por template ou por Claude (Sonnet escreve, Haiku revisa), com teto de custo | ✅ |
 | Regras de anúncio: #publi no topo, "de/por" só verificado, sem link/@/telefone de terceiros | ✅ |
 | Arte 1080×1350 com a marca do nicho | ✅ |
-| Prévia no Telegram com botões ✅ ❌ ⏭ assinados (HMAC) e comandos `/status`, `/top`, `/pausar`, `/retomar` | ✅ |
+| Prévia no Telegram com botões ✅ ❌ ⏭ assinados (HMAC) e comandos `/status`, `/top`, `/pausar`, `/retomar`, `/cupons`, `/mercado`, `/horarios`, `/imposto`, `/fechamento` | ✅ |
 | Publicação no Telegram por horário, limite diário, circuit breaker, sem duplicar | ✅ |
 | SubIds por post (nicho, canal, post) → venda atribuída a cada post | ✅ |
 | Redirecionador `/go` (Cloudflare) com allowlist e contagem de cliques humanos | ✅ (opcional) |
 | Conversões (Shopee API e CSV) e relatório diário com EPC e eventos de segurança | ✅ |
 | Backup semanal criptografado e restauração | ✅ |
 | Trava de produção: só roda commit verde em `ci` e `security` | ✅ |
-| Instagram, TikTok, lojas, cupons, analista de mercado | ⏳ [próximas fases](#próximas-fases) |
+| **Vigia de preço e estoque** antes de publicar (preço mudou → reaprovação; esgotado → não publica) | ✅ |
+| **Calendário sazonal** (11.11, Black Friday 27/11/2026, 12.12, Natal): mais posts, palavras extras, selo | ✅ |
+| **Classificador de conformidade** (Haiku): barra remédio, réplica, adulto, arma com título "limpo" | ✅ |
+| **Caçador de cupons** (`config/coupons.csv`) na legenda, com saída automática do cupom vencido | ✅ |
+| **Sentinela + Reciclador**: posts 🔥 e 💤 no relatório; campeões voltam depois do cooldown | ✅ |
+| **Detector de link quebrado**, **Analista de mercado**, **Otimizador de horários**, **Laboratório A/B** | ✅ |
+| **Conciliador + Contador**: fechamento mensal, CSV para a contabilidade, imposto estimado, divisão do dinheiro, riscos | ✅ |
+| Instagram, TikTok, lojas, monitor de concorrentes | ⏳ [próximas fases](#próximas-fases) |
 
 ## Teste em 2 minutos (sem nenhuma conta)
 
@@ -70,9 +77,12 @@ Depois disso roda sozinho (horário de Brasília):
 |---|---|
 | Manhã (≈ 5 min) | Aprovar as prévias no Telegram. O botão confirma na próxima execução |
 | Quando quiser | Colar novas ofertas no CSV (ML/Amazon) e fazer commit |
-| Noite | Ler o relatório: cliques, pedidos, comissão e **EPC** (comissão por clique) por nicho |
+| Noite | Ler o relatório: cliques, pedidos, comissão, **EPC** (comissão por clique), posts 🔥 da Sentinela, links quebrados e cupons vencendo |
+| Quando pegar cupom | Colar em `config/coupons.csv` e fazer commit |
+| Domingo | Relatório semanal: Analista de mercado (qual nicho ativar), Otimizador de horários e Laboratório A/B |
 | Semanal | Importar vendas do ML/Amazon: `--steps conversions --import-conversions vendas.csv` |
-| Mensal | Baixar o backup mais recente e guardar fora do GitHub |
+| Mensal (dia 5) | Fechamento automático: Conciliador + Contador + CSV. Leve ao contador. Baixe o backup mais recente e guarde fora do GitHub |
+| Antes de cada data de pico | Conferir `config/calendar.yaml` (o relatório avisa com antecedência) |
 
 Nicho maduro? Troque `approval: manual` por `approval: auto_above_score` nele para pular a aprovação dos posts com score alto.
 
@@ -93,17 +103,20 @@ Passos: `migrate, sync-niches, healthcheck, approvals, ingest, purge, transform,
 ## Estrutura
 
 ```
-config/              niches.yaml (+ schema), marcas, ofertas manuais (CSV), domínios permitidos
+config/              niches.yaml (+ schema), marcas, ofertas manuais (CSV), domínios permitidos,
+                     calendar.yaml, coupons.csv, finance.yaml (agentes)
 src/run.py           ponto de entrada: passos, falha isolada por nicho, modo demo
 src/config/          modelos do niches.yaml, merge de defaults, validador
-src/common/          banco (Postgres/SQLite), logging com redação, Telegram, segredos, utilitários
+src/common/          banco (Postgres/SQLite), logging com redação, Telegram, segredos, LLM (teto de custo), utilitários
 src/sources/         Shopee API, CSV manual, fonte falsa
 src/pipeline/        ingest (bronze), transform (silver), score (gold), content (pauta + copy)
 src/content/         marca, copy (template/Claude), legenda + regras, arte
 src/approval.py      prévias e botões · src/commands.py: comandos do bot
 src/publishers/      publicador do Telegram
 src/tracking/        Cloudflare (KV/D1), cliques e conversões
-src/reports/         relatório diário
+src/reports/         relatório diário, semanal (domingo) e fechamento mensal
+src/agents/          calendário, vigia de preço, conformidade, cupons, sentinela/reciclador, links,
+                     mercado/horários/A-B (insights) e conciliador/contador (finance)
 src/backup.py        backup e restauração
 sql/migrations/      schema (comum) + segurança (só Postgres: papéis, RLS, sem DELETE)
 worker/              redirecionador /go (TypeScript, Cloudflare)
@@ -133,13 +146,11 @@ docs/                SETUP, agentes, dados, desenvolvimento, runbook, segredos, 
 
 ## Próximas fases
 
-Do roadmap ([ARQUITETURA.md §8](ARQUITETURA.md#8-roadmap-orientado-a-receita)) e das ideias de [agentes](docs/agentes.md#ideias-de-novos-agentes-para-o-seu-fluxo):
+Do roadmap ([ARQUITETURA.md §8](ARQUITETURA.md#8-roadmap-orientado-a-receita)) e das ideias de [agentes](docs/agentes.md#ideias-de-agentes-futuros):
 
-1. **Vigia de preço e estoque** antes de publicar.
-2. **Calendário sazonal** (Black Friday 27/11/2026).
-3. **Sentinela + Reciclador** de posts campeões.
-4. Instagram (feed, reels, stories) e TikTok (rascunho).
-5. Lojas por nicho, Caçador de cupons, Analista de mercado e Monitor de concorrentes.
-6. Webhook do Telegram, para o botão responder na hora ([ADR 0002](docs/adr/0002-aprovacao-por-polling.md)).
+1. Instagram (feed, reels, stories) e TikTok (rascunho).
+2. Lojas por nicho (Lojista) e Monitor de concorrentes.
+3. Consultor: experimentos sugeridos em linguagem natural a partir dos números da Sentinela, do Analista e do A/B.
+4. Webhook do Telegram, para o botão responder na hora ([ADR 0002](docs/adr/0002-aprovacao-por-polling.md)).
 
 Histórico de mudanças: [CHANGELOG.md](CHANGELOG.md).

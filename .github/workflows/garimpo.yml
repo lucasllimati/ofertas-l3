@@ -15,7 +15,7 @@ on:
       steps:
         description: "O que rodar"
         type: choice
-        options: [healthcheck, daily, publish, report, backup]
+        options: [healthcheck, daily, publish, report, close, backup] # close = fechamento do mês anterior
         default: healthcheck
       run_date:
         description: "Dia a (re)processar, AAAA-MM-DD (vazio = hoje)"

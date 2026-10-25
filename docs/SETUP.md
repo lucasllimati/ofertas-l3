@@ -618,7 +618,8 @@ Tudo pelo GitHub: **Actions → garimpo → Run workflow** e escolha o passo. Pe
 | 2 | `daily` | Chegam até 5 prévias por nicho, com arte, legenda e botões ✅ ❌ ⏭ |
 | 3 | Aprovar | Toque em ✅ nas prévias que gostar. O botão é processado na próxima execução |
 | 4 | `publish` | Os aprovados com horário vencido saem nos canais. Depois disso o publish roda sozinho às 08:07, 12:07, 19:07 e 21:07 |
-| 5 | `report` | Relatório no seu Telegram. Roda sozinho às 22:37 |
+| 5 | `report` | Relatório no seu Telegram. Roda sozinho às 22:37; aos domingos traz também mercado, horários e A/B; no dia 5, o fechamento do mês |
+| 6 | `close` (opcional) | Fechamento do mês anterior (Conciliador + Contador) com o CSV para a contabilidade. Também pelo comando `/fechamento` |
 
 Execução automática (horário de Brasília): `daily` 05:07 · `publish` 08:07, 12:07, 19:07 e 21:07 · `report` 22:37 · `backup` domingo 03:17.
 
@@ -638,6 +639,9 @@ Toda execução começa pelo job **verify**: ele só deixa a produção rodar se
 | `config/brands/<nicho>.json` | Cores, emoji, hashtags e nome do nicho na arte e na legenda | Ao criar nicho ou mudar identidade |
 | `config/offers/<nicho>.csv` | Ofertas coladas à mão (Shopee sem API, ML, Amazon) | Sempre que quiser postar um link seu |
 | [config/allowed_domains.json](../config/allowed_domains.json) | Domínios permitidos para links (pipeline e Worker) | Ao entrar uma loja nova |
+| [config/calendar.yaml](../config/calendar.yaml) | Calendário sazonal: datas de pico, palavras-chave extras, volume e selo | Antes de cada data comercial (Black Friday, Natal...) |
+| [config/coupons.csv](../config/coupons.csv) | Cupons válidos que entram nas legendas | Sempre que pegar cupom novo no painel ou newsletter |
+| [config/finance.yaml](../config/finance.yaml) | Regime tributário, alíquotas, plano de divisão do dinheiro (Contador) | Com o contador e todo janeiro |
 | [.github/workflows/garimpo.yml](../.github/workflows/garimpo.yml) | Horários (cron em UTC) e segredos que chegam ao programa | Ao mudar `publish_slots` ou ativar nicho |
 | [.github/workflows/security.yml](../.github/workflows/security.yml) | Varreduras de segurança | Raramente |
 | [.github/dependabot.yml](../.github/dependabot.yml) | Atualização automática de dependências | Raramente |
@@ -670,6 +674,12 @@ Todos em [config/niches.yaml](../config/niches.yaml), salvo indicação. Depois 
 | Permitir links de outra loja | [config/allowed_domains.json](../config/allowed_domains.json) | `"magazineluiza.com.br"` |
 | Pausar um canal na hora | Telegram: `/pausar casa telegram` (volta com `/retomar casa telegram`) | — |
 | Pausar um nicho de vez | `status: paused` no nicho | — |
+| Desligar um agente num nicho | `agents:` em `defaults` ou no nicho | `price_guard: {enabled: false}`, `ab_test: false` |
+| Tolerância do Vigia de preço | `agents.price_guard.tolerance_pct` | `5` (só pede reaprovação se o preço mudar mais de 5%) |
+| Mais ou menos campeões reciclados | `agents.recycle.max_share` (0 a 0,5) | `0.10` |
+| Adicionar uma data de pico | [config/calendar.yaml](../config/calendar.yaml) (ver abaixo) | — |
+| Pôr um cupom nas legendas | [config/coupons.csv](../config/coupons.csv) (ver abaixo) | — |
+| Ajustar o cálculo de imposto | [config/finance.yaml](../config/finance.yaml) (ver abaixo) | `regime: simples` |
 
 **Horários: YAML e cron precisam combinar.** `publish_slots` está no horário de Brasília; o cron do GitHub está em **UTC** (Brasília + 3h). Se trocar os slots para `09:07` e `18:07`, as linhas de publish do `garimpo.yml` viram uma só:
 
@@ -681,6 +691,43 @@ schedule:
 ```
 
 Slot depois das 21:00 BRT cai no dia seguinte em UTC (21:07 BRT = `7 0 * * *`). O workflow usa o texto exato dos crons de daily (`7 8 * * *`), report (`37 1 * * *`) e backup (`17 6 * * 0`) para saber o que rodar; qualquer outro cron vira publish. O daily precisa rodar antes do primeiro slot.
+
+O Otimizador de horários sugere os slots e o cron já em UTC no relatório de domingo e no comando `/horarios <nicho>`.
+
+### 15.1 Calendário sazonal (`config/calendar.yaml`)
+
+Cada evento tem `id`, `name`, `start` e `end` (inclusivos, horário de Brasília), `niches` (vazio = todos), `extra_keywords` por nicho, `content_multiplier` (1 a 3: multiplica posts criados e publicados no dia), `badge` (selo na arte e na legenda) e `heads_up_days` (aviso no relatório antes de começar). O arquivo já traz 11.11, Esquenta Black Friday, Black Friday (27–30/11/2026), 12.12, Natal e Dia das Mães 2027. Confira as datas de cada ano e rode o `validate`.
+
+### 15.2 Cupons (`config/coupons.csv`)
+
+```csv
+platform,code,description,discount_pct,discount_brl,min_purchase,valid_until,niches
+shopee,ACHADO10,10% em casa e decoração,10,,50,2026-11-30 23:59,casa
+mercadolivre,PET20,R$ 20 off,,20,"99,90",30/11/2026 23:59,pet;casa
+```
+
+- Preencha `discount_pct` **ou** `discount_brl`; `min_purchase` e `niches` são opcionais (`niches` separados por `;`, vazio = todos).
+- Só entra na legenda o cupom que passa nas regras `coupons` do nicho em `niches.yaml`: desconto de pelo menos `min_discount_pct` (10%) **ou** `min_discount_brl` (R$ 20) e pelo menos `min_hours_valid` (6 h) de validade.
+- Valores aceitam vírgula decimal; datas em ISO ou `dd/mm/aaaa hh:mm` (Brasília).
+- Use só cupons que você confirmou no painel de afiliado: o código vai literalmente para o canal.
+- O cupom vencido sai da legenda sozinho; o relatório avisa os que vencem em 24 h; `/cupons` lista os válidos.
+
+### 15.3 Contador e finanças (`config/finance.yaml`)
+
+> ⚠️ Estimativas para planejamento. Não substitui contador.
+
+| Campo | O que é | Faça |
+|---|---|---|
+| `regime` | `simples`, `mei` ou `pf` | Confirme com o contador |
+| `mei_permitido` | Libera a comparação com o MEI | Deixe `false` até o contador confirmar que a sua ocupação cabe no MEI (afiliado costuma não caber) |
+| `simples.anexo` | `iii`, `v` ou `fator_r` | O contador diz qual |
+| `simples.folha_12m` | Pró-labore e salários pagos nos últimos 12 meses | Atualize quando começar a pagar pró-labore |
+| `custos_fixos_mensais` | Contador, domínio, ferramentas (R$/mês) | Preencha |
+| `planejamento` | Margem da reserva de impostos, % de reinvestimento e de caixa, retirada desejada | Ajuste ao seu plano |
+| `dia_fechamento` | Dia do mês do fechamento automático | Padrão 5 |
+| Tabelas (`simples`, `irpf`, `pro_labore`, `mei`, `dividendos`) | Alíquotas e tetos de 2026, com fontes no fim do arquivo | Revise todo janeiro e atualize `atualizado_em` (o Contador avisa se passar de 1 ano) |
+
+Comandos: `/imposto [AAAA-MM]` (estimativa do mês, parcial se for o mês atual) e `/fechamento [AAAA-MM]` (fechamento com CSV). Explicação completa e exemplo de R$ 50 mil: [agentes.md](agentes.md#23-conciliador--contador-trabalham-com-o-financeiro).
 
 ---
 

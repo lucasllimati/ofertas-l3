@@ -13,8 +13,8 @@ Banco: Postgres (Supabase) em produção, schema `garimpo`; SQLite na demo e nos
 |---|---|---|---|
 | Bronze (bruto) | `raw_offer_snapshot`, `raw_offer_niche` | Rastreador | 60 dias (`purge`) |
 | Silver (limpo) | `product`, `product_niche`, `product_daily`, `price_history` | Analista de dados | Indefinida |
-| Gold (decisão) | `product_score` | Analista de dados | Indefinida (substituída por dia) |
-| Conteúdo | `content_item` | Editor de pauta, Porteiro, Publicador | Indefinida, sem DELETE |
+| Gold (decisão) | `product_score`, `compliance_check` | Analista de dados, Classificador de conformidade | Indefinida (substituída por dia) |
+| Conteúdo | `content_item` | Editor de pauta, Porteiro, Publicador, Vigia de preço, Detector de links | Indefinida, sem DELETE |
 | Medição | `click_event`, `conversion` | Contador de cliques, Financeiro | Indefinida, sem DELETE |
 | Operação | `niche`, `agent_run`, `pipeline_run`, `audit_log`, `channel_state`, `kv_state`, `schema_migrations` | Vários | Indefinida (`audit_log` somente-inclusão) |
 
@@ -63,8 +63,11 @@ Banco: Postgres (Supabase) em produção, schema `garimpo`; SQLite na demo e nos
 | `id` | Id curto e determinístico; vai no subId da Shopee e no `/go` |
 | `niche_id`, `product_id`, `channel`, `run_date` | Únicos juntos: um post por produto/canal/dia |
 | `status` | Ver a máquina de estados abaixo |
-| `score`, `pick_reason` | Score no dia e `top` ou `exploration` |
+| `score`, `pick_reason` | Score no dia e `top`, `exploration` ou `recycled` (Reciclador) |
 | `caption`, `copy_source` | Legenda final (HTML do Telegram) e `template` ou `llm` |
+| `copy_json`, `copy_variant` | Título/bullets/hashtags em JSON (o Vigia de preço refaz a legenda sem chamar o LLM) e a variante `A`/`B` do Laboratório A/B |
+| `coupon_code` | Cupom anunciado na legenda (Caçador de cupons); sai se vencer antes de publicar |
+| `status_reason` | Motivo da última mudança feita por um agente: "preço mudou de R$ 39,90 para R$ 49,90", "produto indisponível na loja", "link quebrado" |
 | `affiliate_url`, `tracked_url` | Link de afiliado e o link usado na legenda (`/go` se configurado) |
 | `price_at_creation`, `price_original_shown` | Preço do post e o "de" exibido (só se verificado; NULL = sem riscado) |
 | `scheduled_for` | Horário de publicação (UTC) |
@@ -86,8 +89,17 @@ stateDiagram-v2
   publishing --> published: Telegram confirmou
   publishing --> approved: erro confirmado / arte falhou
   publishing --> publish_unknown: erro de rede (conferir no canal)
+  publishing --> ready: Vigia de preço: preço mudou (nova prévia)
+  publishing --> unavailable: Vigia de preço: produto indisponível
   approved --> expired: mais de 2 dias sem publicar
 ```
+
+### `compliance_check`: veredito do Classificador de conformidade
+| Coluna | Descrição |
+|---|---|
+| `product_id` | Produto (um veredito por produto; não paga o LLM duas vezes) |
+| `verdict` | `ok`, `medicamento`, `replica`, `adulto`, `arma`, `tabaco_alcool` ou `outro_proibido` |
+| `reason`, `model`, `checked_at` | Justificativa curta, modelo usado e quando |
 
 ### `click_event`: cliques (sem dado pessoal)
 `id` (`d1:<n>`), `ts`, `niche_id`, `channel`, `content_id`, `country` (2 letras). Sem IP nem user-agent.
@@ -105,7 +117,7 @@ stateDiagram-v2
 | Tabela | O que guarda |
 |---|---|
 | `niche` | Espelho do `niches.yaml` a cada execução (`config_json`) |
-| `agent_run` | Cada chamada de LLM: agente, modelo, tokens, custo US$, latência, status |
+| `agent_run` | Cada chamada de LLM (Copywriter, Revisor, Classificador): agente, modelo, tokens, custo US$, latência, status. Base do teto de custo diário e do custo de IA no Contador |
 | `pipeline_run` | Cada passo por nicho em cada execução: `running`/`ok`/`failed` e detalhe |
 | `audit_log` | Ações administrativas e de segurança: aprovações, pausas, autoaprovação, circuit breaker, tentativas de terceiros (`tg:<id>`), falhas de atualização |
 | `channel_state` | Por nicho e canal: `paused` e falhas seguidas (circuit breaker) |
