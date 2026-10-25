@@ -42,6 +42,7 @@ class AppContext:
     env: dict[str, str] = field(default_factory=lambda: dict(os.environ))
     out_dir: Path = ROOT / "out"
     demo: bool = False
+    rehearsal: bool = False  # modo ensaio: posts dos canais vão para o chat de admin
 
     @property
     def admin_chat_id(self) -> str:

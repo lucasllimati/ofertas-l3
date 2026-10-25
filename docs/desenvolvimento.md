@@ -32,7 +32,8 @@ Para o Worker: `cd worker && npm ci --ignore-scripts && npm test`.
 | [src/agents/](../src/agents/) | Agentes 13 a 23: `seasonal` (calendário), `price_guard`, `compliance`, `coupons`, `sentinel` (Sentinela + Reciclador), `links`, `insights` (mercado, horários, A/B), `finance` (Conciliador + Contador). Recebem `AppContext`; as dependências externas (consulta de preço, checagem de link, LLM) chegam pelo contexto, montadas em `agent_wiring` ([run.py](../src/run.py)) |
 | [src/backup.py](../src/backup.py) | Backup e restauração |
 | [worker/](../worker/) | Redirecionador `/go` (TypeScript, Cloudflare) |
-| [scripts/](../scripts/) | Checagem de workflows, inventário de segredos, restauração de backup |
+| [scripts/](../scripts/) | Checagem de workflows, inventário de segredos e links da documentação, restauração de backup, `bootstrap_db` (banco de produção) e `push_secrets` (.env → GitHub) |
+| [src/doctor.py](../src/doctor.py) | Assistente de verificação do setup: um `check_<grupo>` por área, cada um isolado; clientes externos injetáveis para teste |
 | [sql/migrations/](../sql/migrations/) | Schema; `*.pg.sql` só roda em Postgres |
 | [tests/](../tests/) | Testes (sem rede; fakes para Shopee, Telegram e LLM) |
 
@@ -78,6 +79,8 @@ Linha de até 120 colunas, `ruff` para lint e formatação. Links internos da do
 5. Testes em `tests/`, documentação em [agentes.md](agentes.md).
 
 ### Mudar o banco
+Em produção a migration nova **não** é aplicada pelo pipeline (o usuário dele não tem DDL): o `migrate` para com `PendingMigrationsError` e o alerta pede para rodar como dono (SETUP §5.3). Mencione isso no PR e no CHANGELOG.
+
 1. Arquivo novo em `sql/migrations/` com número seguinte (`0005_...sql`, ou `.pg.sql` se for só Postgres). Nunca edite migration já aplicada.
 2. Rode os testes em Postgres (abaixo).
 3. **Em produção**, rode `--steps migrate` com o usuário **dono** antes do merge: o usuário do pipeline não tem permissão de DDL e a execução agendada falharia.
@@ -110,6 +113,7 @@ TEST_DATABASE_URL=postgresql://postgres:x@localhost:5432/postgres REQUIRE_POSTGR
 | `test_hardening.py`, `test_security.py` | Revisão de segurança, RLS e permissões (Postgres), backup, workflows |
 | `test_operation.py` | Healthcheck dos canais, alertas, CSV de vendas, falhas do publicador |
 | `test_agents.py` | Agentes 13 a 23: calendário, vigia de preço, conformidade, cupons, sentinela/reciclador, links, insights, imposto, fechamento e comandos |
+| `test_production.py` | Trava de migration pendente, modo ensaio, heartbeat, doctor, push_secrets e bootstrap_db (parte da suíte de segurança) |
 | `test_run.py` | Atalhos, segredos ausentes, demo ponta a ponta |
 | `worker/test/` | Redirecionador: open redirect, robôs, rate limit |
 

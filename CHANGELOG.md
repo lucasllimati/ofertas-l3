@@ -2,6 +2,22 @@
 
 Mudanças relevantes para quem opera o Garimpo. Detalhes técnicos em cada PR.
 
+## [0.5.0] · 2026-10-25: pronto para produção
+
+### Adicionado
+- **Assistente de verificação** (`python -m src.doctor`): testa cada credencial separadamente (Telegram, canais, banco, Shopee, Claude, Cloudflare, monitor, secrets no GitHub, inventário) e aponta a seção do SETUP que resolve cada falha. Nunca mostra valores.
+- **`scripts/bootstrap_db.py`:** migrations, usuário `garimpo_pipeline` com senha aleatória, teste de menor privilégio e `DATABASE_URL` no `.env` em um comando; `--rotate` troca a senha.
+- **`scripts/push_secrets.py`:** envia o `.env` para os secrets do GitHub (valor pela entrada padrão do `gh`), recusa a URL do dono e valores de exemplo, preenche as datas de `docs/secrets.md`.
+- **Modo ensaio** (`--rehearsal` ou variável `GARIMPO_REHEARSAL=1`): tudo real, mas o que iria para os canais chega só no chat de admin. Relatório e healthcheck lembram que está ativo.
+- **Aviso externo de parada** (`HEARTBEAT_URL`, healthchecks.io): cada execução pinga no fim (`/fail` se falhou); se nada chegar, o monitor avisa por e-mail/Telegram.
+
+### Mudado
+- **Trava de migration pendente:** com o usuário do pipeline, o `migrate` não tenta mais aplicar migration nova (falhava com "permission denied" no meio): para antes de tudo com a instrução de rodar como dono.
+- Menu de comandos do bot (SETUP §4.1) com os comandos dos agentes.
+
+### Atenção ao atualizar
+- Sem migration nova nesta versão. Se ainda não aplicou as da 0.4.0 (`0005`, `0006`), rode `scripts/bootstrap_db.py` ou `--steps migrate` como dono.
+
 ## [0.4.0] · 2026-10-25: 11 agentes novos e o Contador
 
 ### Adicionado

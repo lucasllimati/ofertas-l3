@@ -122,7 +122,32 @@ pre-commit install                            # ativa gitleaks e ruff antes de c
 pre-commit run --all-files                    # primeira vez: baixa os ganchos (alguns minutos); tudo deve dar Passed
 uv run pytest                                 # todos os testes devem passar
 uv run python -m src.run --demo --steps all   # demo sem nenhuma conta; veja out/demo/
+uv run python -m src.doctor --offline         # o que falta configurar (ver abaixo)
 ```
+
+### 2.1 Assistente de verificação (`doctor`)
+
+Rode a qualquer momento do setup, quantas vezes quiser. Ele testa cada peça separadamente e diz qual seção deste guia resolve cada falha. Não publica nada, não altera o banco e nunca mostra valores de segredo.
+
+```powershell
+uv run python -m src.doctor                        # tudo (usa a rede: Telegram, banco, Shopee, Claude, Cloudflare, GitHub)
+uv run python -m src.doctor --only telegram,banco  # só alguns grupos
+uv run python -m src.doctor --offline              # só o que não usa rede
+```
+
+Exemplo de saída:
+
+```
+✅ telegram · bot: @garimpo_achados_bot
+❌ telegram · canal pet: TG_PET_CHAT_ID: o bot não é admin com 'Publicar mensagens' em @garimpopet → SETUP §4.3
+⚠️  banco · usuário: esta URL é do DONO (pode alterar tabelas). No GitHub use a do garimpo_pipeline → SETUP §5.4
+⏭  claude · API: opcional: sem chave a copy sai do template
+
+Resumo: 9 ok · 1 avisos · 1 falhas · 3 pulados
+Comece por: telegram · canal pet (SETUP §4.3)
+```
+
+Grupos: `config`, `segredos`, `telegram`, `banco`, `shopee`, `claude`, `cloudflare`, `monitor`, `github`. Termina com código 1 se houver falha (dá para usar em script).
 
 ---
 
@@ -174,6 +199,11 @@ São 5 tipos de valor.
    top - 10 melhores produtos de um nicho (ex.: /top casa)
    pausar - pausa um canal (ex.: /pausar casa telegram)
    retomar - retoma um canal (ex.: /retomar casa telegram)
+   cupons - cupons válidos agora
+   mercado - qual nicho ativar a seguir
+   horarios - melhores horários de um nicho (ex.: /horarios casa)
+   imposto - imposto estimado do mês (ex.: /imposto 2026-10)
+   fechamento - fechamento do mês com CSV para o contador
    ```
 
 > Quem tem o token controla o bot e publica nos seus canais. Se vazar: `/revoke` no BotFather na hora (seção 17).
@@ -256,6 +286,8 @@ Postgres gerenciado e grátis. São criados **dois usuários**: o dono (só na s
    - `<project-ref>` é o código do projeto (aparece na URL do painel).
    - Use **Session pooler**. A "Direct connection" é só IPv6 e não funciona no GitHub Actions.
 
+> **Atalho para 5.3 e 5.4:** depois de 5.1 e 5.2, rode `uv run python scripts/bootstrap_db.py`. Ele pede a URL do dono (a digitação não aparece), aplica as migrations, cria o usuário `garimpo_pipeline` com uma senha aleatória forte, testa que ele lê as tabelas e **não** consegue alterá-las, e grava a `DATABASE_URL` do pipeline no seu `.env`. A senha não aparece na tela. Para trocar a senha depois: `--rotate`. Os passos manuais abaixo continuam valendo se preferir.
+
 ### 5.3 Criar as tabelas (uma vez, como dono)
 
 Na pasta do projeto:
@@ -274,7 +306,9 @@ uv run python -m src.run --steps migrate
 unset DATABASE_URL
 ```
 
-O log deve mostrar `migrate ok` com `0001_core.sql` e `0002_security.pg.sql`. Isso cria o schema `garimpo`, as tabelas, os papéis `app_writer` e `app_reader`, as views de relatório e liga o RLS em todas as tabelas.
+O log deve mostrar `migrate ok` com as migrations aplicadas (`0001_core.sql`, `0002_security.pg.sql` e as seguintes). Isso cria o schema `garimpo`, as tabelas, os papéis `app_writer` e `app_reader`, as views de relatório e liga o RLS em todas as tabelas.
+
+**Atualização do projeto com migration nova** (ex.: `0005_agents.sql`): repita este passo como dono depois do merge. O usuário do pipeline não altera tabelas, de propósito; se houver migration pendente, a execução para antes de fazer qualquer coisa e o alerta no Telegram diz exatamente isso ("migration pendente: ... rode migrate com a URL do dono").
 
 ### 5.4 Criar o usuário do pipeline → `DATABASE_URL`
 
@@ -551,10 +585,21 @@ Opcional. Só é necessário para `/go` com domínio próprio e, no futuro, para
 | `BACKUP_PASSPHRASE` | Recomendado (sem ele o backup semanal não roda) | [12.5](#125-backup-semanal--backup_passphrase) |
 | `ANTHROPIC_API_KEY` | Não | [9](#9-claude-anthropic) |
 | `CF_API_TOKEN`, `CF_ACCOUNT_ID`, `CF_KV_NAMESPACE_ID`, `CF_D1_DATABASE_ID`, `REDIRECT_BASE_URL` | Não (todas juntas) | [10.3](#103-token-de-api-e-variáveis) |
+| `HEARTBEAT_URL` | Recomendado (avisa se o sistema parar) | [13.2](#132-aviso-de-o-sistema-parou--heartbeat_url) |
+| `GARIMPO_REHEARSAL` (*variable*, não secret) | Só na primeira semana | [13.1](#131-modo-ensaio-primeira-semana) |
 
 ### 12.2 No GitHub (produção)
 
-**Pelo terminal** (recomendado: o valor é digitado escondido e não fica no histórico):
+**Do `.env` para o GitHub de uma vez** (recomendado): preencha o `.env` (12.3) e rode
+
+```powershell
+uv run python scripts/push_secrets.py --dry-run   # mostra o que vai enviar (só nomes)
+uv run python scripts/push_secrets.py             # pede confirmação e envia
+```
+
+Ele só envia nomes do projeto, recusa a URL do **dono** do banco e valores de exemplo, manda cada valor pela entrada padrão do `gh` (nunca aparece na tela nem no histórico) e preenche as datas em [docs/secrets.md](secrets.md) (faça commit depois). Para enviar só alguns: `--only TELEGRAM_BOT_TOKEN,TG_CASA_CHAT_ID`. Confira no fim com `uv run python -m src.doctor --only github`.
+
+**Um por um pelo terminal** (o valor é digitado escondido e não fica no histórico):
 
 ```bash
 gh secret set DATABASE_URL            --repo lucasllimati/ofertas-l3
@@ -569,6 +614,7 @@ gh secret set SHOPEE_APP_ID           --repo lucasllimati/ofertas-l3
 gh secret set SHOPEE_APP_SECRET       --repo lucasllimati/ofertas-l3
 gh secret set ANTHROPIC_API_KEY       --repo lucasllimati/ofertas-l3
 gh secret set BACKUP_PASSPHRASE       --repo lucasllimati/ofertas-l3
+gh secret set HEARTBEAT_URL           --repo lucasllimati/ofertas-l3   # seção 13.2
 gh secret list                        --repo lucasllimati/ofertas-l3   # confere os nomes (nunca mostra valores)
 ```
 
@@ -610,6 +656,8 @@ Dica: uma vez por mês, baixe o artefato mais recente e guarde fora do GitHub (u
 
 ## 13. Primeira execução
 
+Antes: `uv run python -m src.doctor` sem nenhum ❌ (seção [2.1](#21-assistente-de-verificação-doctor)).
+
 Tudo pelo GitHub: **Actions → garimpo → Run workflow** e escolha o passo. Pelo terminal: `gh workflow run garimpo.yml -f steps=<passo> --repo lucasllimati/ofertas-l3`.
 
 | # | Passo | O que esperar |
@@ -626,6 +674,28 @@ Execução automática (horário de Brasília): `daily` 05:07 · `publish` 08:07
 Para reprocessar um dia ou um nicho, use os campos `run_date` e `niche` do Run workflow.
 
 Toda execução começa pelo job **verify**: ele só deixa a produção rodar se o commit atual passou em `ci` e `security`. Logo depois de um merge, ele espera esses workflows terminarem (até 12 min). Se algum falhou, a execução para e nada é publicado: corrija e faça merge de novo.
+
+### 13.1 Modo ensaio (primeira semana)
+
+Tudo funciona de verdade (Shopee, banco, prévias, aprovação, Vigia de preço, relatório), mas **o que iria para os canais chega só no seu chat**, precedido de "🎭 Ensaio: a mensagem abaixo iria para @garimpocasa". Nada sai em público enquanto você confere preço, arte, texto e horários.
+
+1. Ligar: GitHub → Settings → Secrets and variables → Actions → aba **Variables** → **New repository variable** → `GARIMPO_REHEARSAL` = `1`. Pelo terminal: `gh variable set GARIMPO_REHEARSAL --body 1 --repo lucasllimati/ofertas-l3`.
+2. O relatório da noite e o healthcheck lembram que o ensaio está ativo.
+3. Desligar (quando estiver satisfeito): apague a variável (`gh variable delete GARIMPO_REHEARSAL --repo lucasllimati/ofertas-l3`). A próxima execução publica nos canais.
+
+Na sua máquina: `uv run python -m src.run --rehearsal --steps daily` (ou `GARIMPO_REHEARSAL=1` no `.env`). Os posts do ensaio contam como publicados no banco (entram no relatório e no intervalo de repetição de 7 dias).
+
+### 13.2 Aviso de "o sistema parou" → `HEARTBEAT_URL`
+
+O alerta de falha chega pelo Telegram, mas, se o sistema nem rodar (GitHub Actions fora, minutos do mês esgotados, workflow desativado, Supabase pausado), ninguém avisa. Um monitor externo resolve: cada execução manda um "estou vivo"; se ele parar de chegar, o monitor avisa você.
+
+1. Crie a conta grátis em [healthchecks.io](https://healthchecks.io) e ative o 2FA.
+2. **Add Check** → nome `garimpo` → **Schedule**: Period **8 hours**, Grace Time **1 hour** (a maior pausa entre execuções é 22:37 → 05:07).
+3. **Integrations**: o e-mail já vem ligado; adicione **Telegram** para receber no celular.
+4. Copie a **Ping URL** (`https://hc-ping.com/<uuid>`) e cadastre: `gh secret set HEARTBEAT_URL --repo lucasllimati/ofertas-l3`.
+5. Rode o `healthcheck` pelo Run workflow: o check fica verde. Execução com falha manda `/fail` e o check fica vermelho na hora.
+
+Trate a Ping URL como segredo (quem tem ela consegue fingir que o sistema está vivo), mas ela não dá acesso à sua conta.
 
 ---
 
@@ -858,7 +928,9 @@ Depois de trocar:
 | Botão aprovado não publica | Aprovação só é lida na próxima execução | Espere o próximo horário ou rode `publish` manualmente |
 | Oferta do CSV não aparece | Link fora da allowlist, sem `https` ou sem preço | Veja o log do `daily` ("oferta manual ignorada") |
 | `copy template` mesmo com chave do Claude | Orçamento diário atingido, chave inválida ou `llm.enabled: false` | Confira o saldo e o limite no console e os tetos no YAML |
-| Workflow agendado não roda | Workflows agendados só rodam a partir da `main`; repositório sem atividade por 60 dias desativa o cron | Faça merge na `main`; reative em Actions se o GitHub desativar |
+| Workflow agendado não roda | Agendamentos só rodam a partir da `main`. O GitHub também pode desativar um workflow (ex.: repositório público sem atividade por 60 dias) ou atrasar o cron em horários de pico | Faça merge na `main`; em Actions → garimpo, veja se aparece "This workflow was disabled" e reative. O aviso de parada (13.2) avisa se acontecer |
+| `migration pendente: 0005_... rode migrate com a URL do dono` | Atualização do projeto trouxe tabela ou coluna nova; o usuário do pipeline não altera o schema | Rode a seção 5.3 (ou `scripts/bootstrap_db.py`) como dono e repita a execução |
+| `doctor`: `esta URL é do DONO` | O `.env` está com a URL do dono do banco | Na sua máquina serve para o `migrate`; no GitHub vai a do `garimpo_pipeline` (o `push_secrets` recusa a do dono) |
 | Job `verify` falhou: "não passou em ci e security" | O commit atual da `main` tem CI ou security vermelho (ou foi um push direto que ainda não rodou) | Abra o `ci`/`security` daquele commit, corrija via PR; a próxima execução agendada volta sozinha |
 | `security` vermelho no PR | Segredo no código, dependência vulnerável ou workflow fora do padrão | Abra o log do job `scan`; ele diz o passo e o arquivo |
 
@@ -890,6 +962,9 @@ Mais casos e procedimentos: [docs/runbook.md](runbook.md).
 - [ ] `BACKUP_PASSPHRASE` cadastrado e no gerenciador de senhas; `backup` rodado uma vez com sucesso
 
 **Primeira execução**
+- [ ] `uv run python -m src.doctor` sem ❌
+- [ ] (Recomendado) `HEARTBEAT_URL` cadastrado e check verde no healthchecks.io
+- [ ] (Recomendado) Primeira semana em modo ensaio (`GARIMPO_REHEARSAL=1`); depois apagar a variável
 - [ ] `healthcheck` verde e mensagem recebida
 - [ ] `daily` com prévias recebidas e aprovadas
 - [ ] `publish` publicou nos canais

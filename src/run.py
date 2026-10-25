@@ -5,8 +5,11 @@
     python -m src.run --steps report                 # cliques, conversões e relatório
     python -m src.run --steps healthcheck            # testa config, segredos, banco e bot
     python -m src.run --demo --steps all             # tudo local, sem credenciais
+    python -m src.run --rehearsal --steps daily      # ensaio: tudo real, mas os posts vão só para você
 
 Opções: --run-date AAAA-MM-DD, --niche <id>, --now <ISO UTC>, --import-conversions <csv>.
+Ensaio também por variável: GARIMPO_REHEARSAL=1 (no GitHub: Settings → Variables → Actions).
+Aviso externo de "o sistema parou": HEARTBEAT_URL (healthchecks.io), pingado no fim de cada execução.
 """
 
 from __future__ import annotations
@@ -14,6 +17,7 @@ from __future__ import annotations
 import argparse
 import html
 import os
+import re
 import sys
 import traceback
 from collections.abc import Callable
@@ -52,6 +56,8 @@ ALIASES = {
 ALIASES["all"] = ALIASES["daily"] + ALIASES["publish"] + ALIASES["report"]  # o dia inteiro (demo)
 MONITORED = ("active", "candidate")  # candidate: coleta e score, sem conteúdo
 ACTIVE = ("active",)
+TRUTHY = {"1", "true", "yes", "sim", "on"}
+HEARTBEAT_RE = re.compile(r"^https://[A-Za-z0-9.-]+(:\d+)?/[A-Za-z0-9/_.-]+$")
 
 
 # --------------------------------------------------------------------- passos
@@ -70,6 +76,20 @@ def step_sync_niches(ctx: AppContext) -> dict[str, Any]:
     return {"niches": len(ctx.config.niches)}
 
 
+def channel_problem(telegram: Any, bot_id: int, chat_id: str) -> str | None:
+    """None se o bot pode publicar no canal; senão, o problema em uma frase (healthcheck e doctor)."""
+    if not chat_id:
+        return "sem chat id configurado"
+    try:
+        member = telegram.get_chat_member(chat_id, bot_id)
+    except Exception as exc:
+        return f"canal {chat_id} inacessível ({type(exc).__name__})"
+    can_post = member.get("status") == "creator" or (
+        member.get("status") == "administrator" and member.get("can_post_messages", False)
+    )
+    return None if can_post else f"o bot não é admin com 'Publicar mensagens' em {chat_id}"
+
+
 def step_healthcheck(ctx: AppContext, notify: bool = False) -> dict[str, Any]:
     """Confere banco, bot e, para cada nicho ativo, se o bot pode publicar no canal.
 
@@ -81,24 +101,16 @@ def step_healthcheck(ctx: AppContext, notify: bool = False) -> dict[str, Any]:
     active = [n for n in ctx.config.niches if n.is_active]
     problems = []
     for niche in active:
-        chat_id = ctx.channel_chat_id(niche)
-        try:
-            member = ctx.telegram.get_chat_member(chat_id, me["id"])
-        except Exception as exc:
-            problems.append(f"{niche.id}: canal {chat_id or '(sem chat id)'} inacessível ({type(exc).__name__})")
-            continue
-        can_post = member.get("status") == "creator" or (
-            member.get("status") == "administrator" and member.get("can_post_messages", False)
-        )
-        if not can_post:
-            problems.append(f"{niche.id}: o bot não é admin com 'Publicar mensagens' em {chat_id}")
+        problem = channel_problem(ctx.telegram, me["id"], ctx.channel_chat_id(niche))
+        if problem:
+            problems.append(f"{niche.id}: {problem}")
     if problems:
         raise RuntimeError("; ".join(problems))
     if notify:
         ctx.telegram.send_message(
             ctx.admin_chat_id,
             f"✅ Garimpo healthcheck ok · bot @{html.escape(str(me.get('username')))} · "
-            f"canais ok: {', '.join(n.id for n in active)}",
+            f"canais ok: {', '.join(n.id for n in active)}" + (" · 🎭 modo ensaio ativo" if ctx.rehearsal else ""),
         )
     return {"bot": me.get("username"), "active": [n.id for n in active]}
 
@@ -290,6 +302,12 @@ def build_context(args: argparse.Namespace, config: AppConfig) -> AppContext:
             redirect = RedirectRegistry(api, env["CF_KV_NAMESPACE_ID"], base)
     from src.agents.links import http_link_ok
 
+    telegram: Any = TelegramClient(env["TELEGRAM_BOT_TOKEN"])
+    rehearsal = args.rehearsal or env.get("GARIMPO_REHEARSAL", "").strip().lower() in TRUTHY
+    if rehearsal:
+        from src.common.telegram import RehearsalTelegram
+
+        telegram = RehearsalTelegram(telegram, env["TELEGRAM_ADMIN_CHAT_ID"])
     return AppContext(
         **agent_wiring(config, price_source=shopee, llm=getattr(copywriter, "llm", None), link_checker=http_link_ok),
         config=config,
@@ -297,7 +315,8 @@ def build_context(args: argparse.Namespace, config: AppConfig) -> AppContext:
         run_date=run_date,
         now=now,
         run_id=run_id,
-        telegram=TelegramClient(env["TELEGRAM_BOT_TOKEN"]),
+        telegram=telegram,
+        rehearsal=rehearsal,
         shopee=shopee,
         linker=shopee,
         conversions_source=shopee,
@@ -307,6 +326,30 @@ def build_context(args: argparse.Namespace, config: AppConfig) -> AppContext:
         clicks_source=clicks,
         env=env,
     )
+
+
+def ping_heartbeat(env: dict[str, str], ok: bool, http: Any = None) -> bool:
+    """Avisa o monitor externo (healthchecks.io ou compatível) que a execução terminou.
+
+    Se nada chegar no prazo configurado lá, ele avisa você por e-mail/Telegram: cobre o que o próprio
+    sistema não consegue alertar (GitHub Actions fora, minutos esgotados, cron desativado, banco pausado).
+    Nunca derruba a execução.
+    """
+    url = env.get("HEARTBEAT_URL", "").strip()
+    if not url:
+        return False
+    if not HEARTBEAT_RE.match(url):
+        log.warning("HEARTBEAT_URL inválida: precisa ser https:// (healthchecks.io)")
+        return False
+    import httpx
+
+    try:
+        client = http or httpx.Client(timeout=10)
+        client.get(url if ok else f"{url.rstrip('/')}/fail")
+        return True
+    except Exception as exc:  # o monitor fora do ar não pode quebrar a produção
+        log.warning("heartbeat não enviado", extra={"data": {"error": type(exc).__name__}})
+        return False
 
 
 def parse_args(argv: list[str] | None) -> argparse.Namespace:
@@ -320,6 +363,7 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
     p.add_argument("--no-notify", dest="notify", action="store_false", help="healthcheck sem mensagem de teste")
     p.add_argument("--import-conversions", help="CSV de conversões (ML/Amazon) para o passo conversions")
     p.add_argument("--month", help="AAAA-MM para o passo close (padrão: mês anterior)")
+    p.add_argument("--rehearsal", action="store_true", help="ensaio: posts dos canais vão para o chat de admin")
     return p.parse_args(argv)
 
 
@@ -358,6 +402,8 @@ def main(argv: list[str] | None = None) -> int:
     steps = expand_steps(args.steps, registry)
     log.info("início", extra={"data": {"steps": steps, "run_date": ctx.run_date.isoformat(), "demo": ctx.demo}})
     failures = run_steps(ctx, steps, registry, args.niche)
+    if not ctx.demo:
+        ping_heartbeat(ctx.env, ok=not failures)
     if failures:
         from src.publishers.telegram import alert
 

@@ -1,6 +1,6 @@
 [project]
 name = "garimpo-engine"
-version = "0.4.0"
+version = "0.5.0"
 description = "Sistema de afiliados multi-nicho: Shopee -> score -> conteúdo -> aprovação -> Telegram"
 requires-python = ">=3.12"
 dependencies = [

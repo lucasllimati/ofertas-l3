@@ -68,6 +68,9 @@ uv run python -m src.run --steps daily --run-date 2026-10-20 --niche casa
 | `📅 Em N dia(s): <evento>` (relatório) | Calendário sazonal: prepare ofertas de ML/Amazon no CSV e cupons em `config/coupons.csv` antes do evento. |
 | `🎟 Cupom X (loja) vence em menos de 24 h` (relatório) | Troque ou renove o cupom em `config/coupons.csv`; o vencido sai das legendas sozinho. |
 | `configuração dos agentes inválida` (validate/CI) | `calendar.yaml`, `coupons.csv` ou `finance.yaml` com erro; a mensagem diz o arquivo e a linha. |
+| `migration pendente: ... rode migrate com a URL do dono` | Um merge trouxe migration nova; a execução parou antes de fazer qualquer coisa (nada publicado). Rode `--steps migrate` com a URL do dono (SETUP §5.3) ou `scripts/bootstrap_db.py`, e reprocesse com Run workflow. |
+| healthchecks.io: `garimpo is DOWN` | Nenhuma execução terminou nas últimas 9 h, ou a última falhou. Veja Actions → garimpo: workflow desativado, minutos esgotados (Settings → Billing), `verify` bloqueando ou Supabase pausado. Rode o `healthcheck` pelo Run workflow para confirmar a volta. |
+| `🎭 Modo ensaio ativo` no relatório | Os posts estão indo só para você. Para publicar de verdade: `gh variable delete GARIMPO_REHEARSAL --repo lucasllimati/ofertas-l3` (SETUP §13.1). |
 | `getUpdates ... Conflict` | Existe um webhook configurado no bot. `https://api.telegram.org/bot<TOKEN>/deleteWebhook` (no navegador, sem compartilhar a URL). |
 
 ## Fechar o mês (Conciliador + Contador)

@@ -34,7 +34,7 @@ Três barreiras rodam sozinhas e não dependem de você lembrar:
 
 O `check_workflows.py` recusa um `garimpo.yml` sem o job `verify`, então a trava não pode ser removida por engano.
 
-Para incluir um teste novo na suíte de segurança, ponha-o em `tests/test_security.py` ou `tests/test_hardening.py`, ou use no nome uma das palavras de `SECURITY_KEYWORDS` em [tests/conftest.py](tests/conftest.py). Para rodar localmente: `uv run pytest -m security`.
+Para incluir um teste novo na suíte de segurança, ponha-o em `tests/test_security.py`, `tests/test_hardening.py` ou `tests/test_production.py`, ou use no nome uma das palavras de `SECURITY_KEYWORDS` em [tests/conftest.py](tests/conftest.py). Para rodar localmente: `uv run pytest -m security`.
 
 ## Regras do repositório
 

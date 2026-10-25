@@ -112,6 +112,8 @@ jobs:
           CF_D1_DATABASE_ID: ${{ secrets.CF_D1_DATABASE_ID }}
           REDIRECT_BASE_URL: ${{ secrets.REDIRECT_BASE_URL }}
           BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+          HEARTBEAT_URL: ${{ secrets.HEARTBEAT_URL }}
+          GARIMPO_REHEARSAL: ${{ vars.GARIMPO_REHEARSAL }} # 1 = ensaio: posts só no seu chat (SETUP §13.1)
           TG_CASA_CHAT_ID: ${{ secrets.TG_CASA_CHAT_ID }}
           TG_PET_CHAT_ID: ${{ secrets.TG_PET_CHAT_ID }}
           TG_GERAL_CHAT_ID: ${{ secrets.TG_GERAL_CHAT_ID }}

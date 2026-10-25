@@ -10,7 +10,7 @@ Sistema de afiliados multi-nicho. Todo dia ele:
 
 **Comece por aqui:** [índice da documentação](docs/README.md) · [guia de configuração](docs/SETUP.md) · [agentes](docs/agentes.md) · [arquitetura e negócio](ARQUITETURA.md).
 
-## O que já funciona (v0.4)
+## O que já funciona (v0.5)
 
 | Parte | Estado |
 |---|---|
@@ -35,6 +35,7 @@ Sistema de afiliados multi-nicho. Todo dia ele:
 | **Sentinela + Reciclador**: posts 🔥 e 💤 no relatório; campeões voltam depois do cooldown | ✅ |
 | **Detector de link quebrado**, **Analista de mercado**, **Otimizador de horários**, **Laboratório A/B** | ✅ |
 | **Conciliador + Contador**: fechamento mensal, CSV para a contabilidade, imposto estimado, divisão do dinheiro, riscos | ✅ |
+| **Pronto para produção:** `doctor` (verifica cada credencial), `bootstrap_db` e `push_secrets` (setup sem passos manuais), trava de migration pendente, modo ensaio e aviso externo de "o sistema parou" | ✅ |
 | Instagram, TikTok, lojas, monitor de concorrentes | ⏳ [próximas fases](#próximas-fases) |
 
 ## Teste em 2 minutos (sem nenhuma conta)
@@ -54,13 +55,13 @@ Rode de novo com `--run-date 2026-10-21` para ver as janelas de venda funcionand
 
 ## Colocar no ar
 
-Passo a passo completo, com segurança e testes de cada etapa: **[docs/SETUP.md](docs/SETUP.md)**. Em resumo:
+Passo a passo completo, com segurança e testes de cada etapa: **[docs/SETUP.md](docs/SETUP.md)**. Em qualquer momento, `uv run python -m src.doctor` mostra o que já está certo e o que falta, com a seção do guia. Em resumo:
 
 1. **Telegram:** criar o bot e os canais, pôr o bot como admin, pegar seu id (SETUP §4).
-2. **Supabase:** criar o projeto, rodar `--steps migrate` com o usuário dono, criar o usuário `garimpo_pipeline` (SETUP §5).
+2. **Supabase:** criar o projeto e rodar `uv run python scripts/bootstrap_db.py` (migrations, usuário `garimpo_pipeline` e `DATABASE_URL` no `.env`) (SETUP §5).
 3. **Ofertas:** Shopee Open API ou, enquanto ela não sai, `mode: off` e links colados em `config/offers/<nicho>.csv` (SETUP §6–8).
-4. **Secrets no GitHub:** `gh secret set ...` para cada um (SETUP §12), incluindo `BACKUP_PASSPHRASE`.
-5. **Primeira execução:** Actions → **garimpo** → Run workflow → `healthcheck`, depois `daily` e `publish` (SETUP §13).
+4. **Secrets no GitHub:** preencha o `.env` e rode `uv run python scripts/push_secrets.py` (SETUP §12), incluindo `BACKUP_PASSPHRASE` e `HEARTBEAT_URL`.
+5. **Primeira execução:** `doctor` sem ❌; ligue o modo ensaio (`GARIMPO_REHEARSAL=1`) na primeira semana; Actions → **garimpo** → Run workflow → `healthcheck`, depois `daily` e `publish` (SETUP §13).
 
 Depois disso roda sozinho (horário de Brasília):
 
@@ -90,15 +91,17 @@ Nicho maduro? Troque `approval: manual` por `approval: auto_above_score` nele pa
 
 ```bash
 cp .env.example .env      # preencha; .env nunca vai para o git
+uv run python -m src.doctor                      # o que está configurado e o que falta
 uv run python -m src.run --steps healthcheck
 uv run python -m src.run --steps daily
 uv run python -m src.run --steps daily --run-date 2026-10-20 --niche casa   # reprocessar
+uv run python -m src.run --rehearsal --steps daily   # ensaio: posts só no seu chat
 uv run python -m src.config.validate --check-secrets
 uv run pytest                    # todos os testes
 uv run pytest -m security        # só a suíte de segurança
 ```
 
-Passos: `migrate, sync-niches, healthcheck, approvals, ingest, purge, transform, score, content, preview, publish, clicks, conversions, report, backup`. Atalhos: `daily`, `publish`, `report`, `all`.
+Passos: `migrate, sync-niches, healthcheck, approvals, ingest, purge, transform, score, content, preview, publish, clicks, conversions, report, close, backup`. Atalhos: `daily`, `publish`, `report`, `all`.
 
 ## Estrutura
 
