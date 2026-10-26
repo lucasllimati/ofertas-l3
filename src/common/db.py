@@ -25,6 +25,18 @@ PG_SCHEMA = "garimpo"
 LOCAL_HOSTS = {"localhost", "127.0.0.1", "::1", ""}
 
 
+class PendingMigrationsError(RuntimeError):
+    """Há migration nova, mas o usuário conectado (o do pipeline) não pode alterar o schema."""
+
+    def __init__(self, pending: list[str]):
+        super().__init__(
+            f"migration pendente: {', '.join(pending)}. O usuário do pipeline não altera o schema: rode "
+            "`python -m src.run --steps migrate` com a URL do dono do banco (docs/SETUP.md §5.3) e depois "
+            "repita esta execução"
+        )
+        self.pending = pending
+
+
 def tls_options(url: str) -> dict[str, str]:
     """Fora da máquina local, exige TLS. O padrão do libpq (sslmode=prefer) aceita cair para texto puro."""
     from psycopg.conninfo import conninfo_to_dict
@@ -124,8 +136,39 @@ class Database:
         self._conn.close()
 
     # --------------------------------------------------------------- migrations
+    def _migration_files(self, directory: Path) -> list[Path]:
+        return [
+            p for p in sorted(directory.glob("*.sql")) if self.dialect == "postgres" or not p.name.endswith(".pg.sql")
+        ]
+
+    def pending_migrations(self, directory: Path = MIGRATIONS_DIR) -> list[str]:
+        """Migrations ainda não aplicadas, sem alterar nada (doctor e trava do migrate)."""
+        if self.dialect == "postgres":
+            exists = self.scalar("SELECT to_regclass(?)", (f"{PG_SCHEMA}.schema_migrations",))
+        else:
+            exists = self.scalar("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'schema_migrations'")
+        done = {r["version"] for r in self.fetchall("SELECT version FROM schema_migrations")} if exists else set()
+        return [p.name for p in self._migration_files(directory) if p.name not in done]
+
+    def can_change_schema(self) -> bool:
+        """O usuário conectado pode criar objetos no schema (dono) ou é o do pipeline (só DML)?"""
+        if self.dialect != "postgres":
+            return True
+        if not self.scalar("SELECT count(*) FROM pg_namespace WHERE nspname = ?", (PG_SCHEMA,)):
+            return bool(self.scalar("SELECT has_database_privilege(current_user, current_database(), 'CREATE')"))
+        return bool(self.scalar("SELECT has_schema_privilege(current_user, ?, 'CREATE')", (PG_SCHEMA,)))
+
     def migrate(self, directory: Path = MIGRATIONS_DIR) -> list[str]:
-        """Aplica migrations pendentes. `*.pg.sql` só roda no Postgres."""
+        """Aplica migrations pendentes. `*.pg.sql` só roda no Postgres.
+
+        Com o usuário do pipeline (sem DDL), não tenta aplicar: falha com uma mensagem que diz o que fazer,
+        em vez de um "permission denied" no meio do script.
+        """
+        pending = self.pending_migrations(directory)
+        if not pending:
+            return []
+        if not self.can_change_schema():
+            raise PendingMigrationsError(pending)
         ddl = "CREATE TABLE IF NOT EXISTS schema_migrations (version TEXT PRIMARY KEY, applied_at TEXT NOT NULL)"
         if self.dialect == "postgres":
             # Checa antes de criar: o papel do pipeline (app_writer) não tem permissão de CREATE.
@@ -138,9 +181,7 @@ class Database:
             self.execute(ddl)
         done = {r["version"] for r in self.fetchall("SELECT version FROM schema_migrations")}
         applied = []
-        for path in sorted(directory.glob("*.sql")):
-            if path.name.endswith(".pg.sql") and self.dialect != "postgres":
-                continue
+        for path in self._migration_files(directory):
             if path.name in done:
                 continue
             log.info("aplicando migration", extra={"data": {"file": path.name}})

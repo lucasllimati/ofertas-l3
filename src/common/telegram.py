@@ -81,6 +81,9 @@ class TelegramClient:
     def get_chat_member(self, chat_id: str, user_id: int) -> dict[str, Any]:
         return self._call("getChatMember", {"chat_id": chat_id, "user_id": user_id})
 
+    def get_chat(self, chat_id: str) -> dict[str, Any]:
+        return self._call("getChat", {"chat_id": chat_id})
+
     def send_document(self, chat_id: str, filename: str, content: bytes, caption: str = "") -> dict:
         data = {"chat_id": chat_id, "caption": caption, "parse_mode": "HTML"}
         return self._call("sendDocument", data, files={"document": (filename, content, "text/csv")})
@@ -99,6 +102,37 @@ class TelegramClient:
             "getUpdates",
             {"offset": offset, "timeout": 0, "allowed_updates": ["message", "callback_query"]},
         )
+
+
+class RehearsalTelegram:
+    """Modo ensaio: tudo real (Shopee, banco, aprovação), mas o que iria para um canal chega no chat
+    de admin, precedido de um aviso com o canal de destino. Nada sai em público.
+
+    O banco registra os posts como publicados (foi o que aconteceu no ensaio), então eles entram no
+    relatório e no cooldown de repetição como qualquer post.
+    """
+
+    def __init__(self, inner: Any, admin_chat_id: str):
+        self.inner = inner
+        self.admin_chat_id = str(admin_chat_id)
+
+    def _target(self, chat_id: str) -> str:
+        if str(chat_id) == self.admin_chat_id:
+            return self.admin_chat_id
+        self.inner.send_message(self.admin_chat_id, f"🎭 <b>Ensaio</b>: a mensagem abaixo iria para {chat_id}")
+        return self.admin_chat_id
+
+    def send_message(self, chat_id: str, text: str, reply_markup=None, parse_mode="HTML") -> dict:
+        return self.inner.send_message(self._target(chat_id), text, reply_markup=reply_markup, parse_mode=parse_mode)
+
+    def send_photo(self, chat_id: str, photo: bytes | str, caption: str, reply_markup=None) -> dict:
+        return self.inner.send_photo(self._target(chat_id), photo, caption, reply_markup=reply_markup)
+
+    def send_document(self, chat_id: str, filename: str, content: bytes, caption: str = "") -> dict:
+        return self.inner.send_document(self._target(chat_id), filename, content, caption)
+
+    def __getattr__(self, name: str) -> Any:  # get_me, get_updates, get_chat_member... sem mudança
+        return getattr(self.inner, name)
 
 
 def largest_photo_id(message: dict[str, Any]) -> str | None:
@@ -158,6 +192,11 @@ class FakeTelegram:
 
     def send_document(self, chat_id, filename, content, caption=""):
         return self._record("document", chat_id, filename=filename, caption=caption, size=len(content))
+
+    def get_chat(self, chat_id):
+        if str(chat_id) in self.fail_chats:
+            raise TelegramError("getChat", "Bad Request: chat not found", 400)
+        return {"id": chat_id, "type": "private"}
 
     def get_chat_member(self, chat_id, user_id):
         if str(chat_id) in self.fail_chats:

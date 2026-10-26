@@ -89,6 +89,12 @@ def llm_cost_today(ctx: AppContext) -> float:
 
 def build_report(ctx: AppContext) -> str:
     lines = [f"<b>📊 Garimpo · {ctx.run_date.strftime('%d/%m/%Y')}</b>", ""]
+    if ctx.rehearsal:
+        lines += [
+            "🎭 <b>Modo ensaio ativo</b>: os posts foram só para você, nenhum canal recebeu nada. "
+            "Para publicar de verdade, apague a variável GARIMPO_REHEARSAL (docs/SETUP.md §13.1).",
+            "",
+        ]
     total_comm = total_comm7 = 0.0
     total_clicks = total_orders = 0
     for niche in ctx.niches():
