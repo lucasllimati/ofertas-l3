@@ -26,6 +26,8 @@ uv run python -m src.run --steps daily --run-date 2026-10-20 --niche casa
 
 ## Pausar e retomar
 
+**Tudo** (coleta, publicação, relatório): apague a variável `GARIMPO_ENABLED` (`gh variable delete GARIMPO_ENABLED --repo lucasllimati/ofertas-l3`); os horários passam a ser pulados sem erro. Volte com `gh variable set GARIMPO_ENABLED --body 1 --repo lucasllimati/ofertas-l3`.
+
 - Pelo bot: `/pausar casa telegram` e `/retomar casa telegram`.
 - Nicho inteiro: em `config/niches.yaml`, `status: paused` e PR.
 

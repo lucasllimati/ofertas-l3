@@ -174,6 +174,16 @@ def test_doctor_all_green_never_shows_values(config, tmp_path):
     for name in ("TELEGRAM_BOT_TOKEN", "SHOPEE_APP_SECRET", "ANTHROPIC_API_KEY", "CF_API_TOKEN", "BACKUP_PASSPHRASE"):
         assert env[name] not in text
     assert "0 falhas" in summary(checks)
+    agenda = next(c for c in checks if c.name == "agendamento")
+    assert agenda.status == "warn" and "GARIMPO_ENABLED" in agenda.detail  # produção ainda desligada
+
+
+def test_doctor_reports_schedule_switch(config):
+    env = {"TELEGRAM_BOT_TOKEN": TOKEN}
+    on = [{"name": "GARIMPO_ENABLED", "value": "1"}, {"name": "GARIMPO_REHEARSAL", "value": "1"}]
+    doctor = Doctor(env, config, runner=gh_runner([], on), which=lambda n: "gh")
+    by_name = {c.name: c for c in doctor.run({"github"})}
+    assert by_name["agendamento"].status == "ok" and by_name["modo ensaio"].status == "warn"
 
 
 def test_doctor_points_to_the_setup_section(config, tmp_path):

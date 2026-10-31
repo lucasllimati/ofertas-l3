@@ -2,6 +2,11 @@
 
 Mudanças relevantes para quem opera o Garimpo. Detalhes técnicos em cada PR.
 
+## [0.5.1] · 2026-10-31: produção só roda quando ligada
+
+### Corrigido
+- **E-mail "Run failed" a cada horário** com o setup incompleto (`segredos ausentes`, exit 2). Os horários automáticos agora só rodam com a variável `GARIMPO_ENABLED=1`; antes disso são pulados sem falha. O Run workflow manual continua funcionando. `check_workflows` exige a chave; o `doctor` mostra se está ligada; o `push_secrets` aceita `GARIMPO_ENABLED` do `.env`.
+
 ## [0.5.0] · 2026-10-25: pronto para produção
 
 ### Adicionado

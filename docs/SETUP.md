@@ -586,6 +586,7 @@ Opcional. Só é necessário para `/go` com domínio próprio e, no futuro, para
 | `ANTHROPIC_API_KEY` | Não | [9](#9-claude-anthropic) |
 | `CF_API_TOKEN`, `CF_ACCOUNT_ID`, `CF_KV_NAMESPACE_ID`, `CF_D1_DATABASE_ID`, `REDIRECT_BASE_URL` | Não (todas juntas) | [10.3](#103-token-de-api-e-variáveis) |
 | `HEARTBEAT_URL` | Recomendado (avisa se o sistema parar) | [13.2](#132-aviso-de-o-sistema-parou--heartbeat_url) |
+| `GARIMPO_ENABLED` (*variable*, não secret) | Sim, por último: liga os horários automáticos | [13](#13-primeira-execução) |
 | `GARIMPO_REHEARSAL` (*variable*, não secret) | Só na primeira semana | [13.1](#131-modo-ensaio-primeira-semana) |
 
 ### 12.2 No GitHub (produção)
@@ -658,6 +659,8 @@ Dica: uma vez por mês, baixe o artefato mais recente e guarde fora do GitHub (u
 
 Antes: `uv run python -m src.doctor` sem nenhum ❌ (seção [2.1](#21-assistente-de-verificação-doctor)).
 
+**Os horários automáticos começam desligados.** Enquanto a variável `GARIMPO_ENABLED` não for `1`, o GitHub pula as execuções agendadas (aparecem como *skipped*, sem falha e sem e-mail). Assim, um setup pela metade não gera um e-mail de "Run failed" a cada horário. O **Run workflow** manual funciona sempre, para você testar cada passo abaixo.
+
 Tudo pelo GitHub: **Actions → garimpo → Run workflow** e escolha o passo. Pelo terminal: `gh workflow run garimpo.yml -f steps=<passo> --repo lucasllimati/ofertas-l3`.
 
 | # | Passo | O que esperar |
@@ -667,9 +670,10 @@ Tudo pelo GitHub: **Actions → garimpo → Run workflow** e escolha o passo. Pe
 | 3 | Aprovar | Toque em ✅ nas prévias que gostar. O botão é processado na próxima execução |
 | 4 | `publish` | Os aprovados com horário vencido saem nos canais. Depois disso o publish roda sozinho às 08:07, 12:07, 19:07 e 21:07 |
 | 5 | `report` | Relatório no seu Telegram. Roda sozinho às 22:37; aos domingos traz também mercado, horários e A/B; no dia 5, o fechamento do mês |
-| 6 | `close` (opcional) | Fechamento do mês anterior (Conciliador + Contador) com o CSV para a contabilidade. Também pelo comando `/fechamento` |
+| 6 | **Ligar a produção** | Com os passos 1 a 5 ok: `gh variable set GARIMPO_ENABLED --body 1 --repo lucasllimati/ofertas-l3` (ou Settings → Secrets and variables → Actions → aba **Variables** → `GARIMPO_ENABLED` = `1`). A partir daí os horários abaixo rodam sozinhos. Para pausar tudo: `gh variable delete GARIMPO_ENABLED --repo lucasllimati/ofertas-l3` |
+| 7 | `close` (opcional) | Fechamento do mês anterior (Conciliador + Contador) com o CSV para a contabilidade. Também pelo comando `/fechamento` |
 
-Execução automática (horário de Brasília): `daily` 05:07 · `publish` 08:07, 12:07, 19:07 e 21:07 · `report` 22:37 · `backup` domingo 03:17.
+Execução automática, com `GARIMPO_ENABLED=1` (horário de Brasília): `daily` 05:07 · `publish` 08:07, 12:07, 19:07 e 21:07 · `report` 22:37 · `backup` domingo 03:17.
 
 Para reprocessar um dia ou um nicho, use os campos `run_date` e `niche` do Run workflow.
 
@@ -929,6 +933,7 @@ Depois de trocar:
 | Oferta do CSV não aparece | Link fora da allowlist, sem `https` ou sem preço | Veja o log do `daily` ("oferta manual ignorada") |
 | `copy template` mesmo com chave do Claude | Orçamento diário atingido, chave inválida ou `llm.enabled: false` | Confira o saldo e o limite no console e os tetos no YAML |
 | Workflow agendado não roda | Agendamentos só rodam a partir da `main`. O GitHub também pode desativar um workflow (ex.: repositório público sem atividade por 60 dias) ou atrasar o cron em horários de pico | Faça merge na `main`; em Actions → garimpo, veja se aparece "This workflow was disabled" e reative. O aviso de parada (13.2) avisa se acontecer |
+| E-mail "Run failed: garimpo" com `segredos ausentes: ...` no log | Os horários automáticos rodaram com secrets faltando | Cadastre os secrets (12.2) e confira com o `doctor`. Se não for configurar agora, apague a variável `GARIMPO_ENABLED`: os horários param sem e-mail |
 | `migration pendente: 0005_... rode migrate com a URL do dono` | Atualização do projeto trouxe tabela ou coluna nova; o usuário do pipeline não altera o schema | Rode a seção 5.3 (ou `scripts/bootstrap_db.py`) como dono e repita a execução |
 | `doctor`: `esta URL é do DONO` | O `.env` está com a URL do dono do banco | Na sua máquina serve para o `migrate`; no GitHub vai a do `garimpo_pipeline` (o `push_secrets` recusa a do dono) |
 | Job `verify` falhou: "não passou em ci e security" | O commit atual da `main` tem CI ou security vermelho (ou foi um push direto que ainda não rodou) | Abra o `ci`/`security` daquele commit, corrija via PR; a próxima execução agendada volta sozinha |
@@ -966,6 +971,7 @@ Mais casos e procedimentos: [docs/runbook.md](runbook.md).
 - [ ] (Recomendado) `HEARTBEAT_URL` cadastrado e check verde no healthchecks.io
 - [ ] (Recomendado) Primeira semana em modo ensaio (`GARIMPO_REHEARSAL=1`); depois apagar a variável
 - [ ] `healthcheck` verde e mensagem recebida
+- [ ] `GARIMPO_ENABLED=1` (liga os horários automáticos)
 - [ ] `daily` com prévias recebidas e aprovadas
 - [ ] `publish` publicou nos canais
 - [ ] `report` chegou à noite
