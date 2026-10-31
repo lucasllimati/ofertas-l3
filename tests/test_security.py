@@ -76,6 +76,15 @@ def test_production_workflow_requires_verify_gate(tmp_path):
     assert any("needs: verify" in p for p in check_workflows.check_file(path))
 
 
+def test_production_schedule_requires_enabled_switch(tmp_path):
+    workflow = (ROOT / ".github" / "workflows" / "garimpo.yml").read_text(encoding="utf-8")
+    line = "    if: github.event_name != 'schedule' || vars.GARIMPO_ENABLED == '1'\n"
+    assert line in workflow
+    path = tmp_path / "garimpo.yml"
+    path.write_text(workflow.replace(line, ""), encoding="utf-8")
+    assert any("GARIMPO_ENABLED" in p for p in check_workflows.check_file(path))
+
+
 def test_secrets_inventory_covers_everything_used():
     assert check_secrets_inventory.used() <= check_secrets_inventory.inventory().keys()
 

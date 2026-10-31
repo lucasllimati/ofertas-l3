@@ -37,6 +37,9 @@ jobs:
   # Trava de produção: só roda código cujo commit exato passou no ci e no security.
   # Sem isso, um push direto na main (sem proteção de branch no plano Free) iria para produção sem verificação.
   verify:
+    # Agendamento só com a produção ligada (variable GARIMPO_ENABLED=1, SETUP §13). Antes disso os horários
+    # são pulados sem falha (e sem e-mail); o Run workflow manual roda sempre.
+    if: github.event_name != 'schedule' || vars.GARIMPO_ENABLED == '1'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:

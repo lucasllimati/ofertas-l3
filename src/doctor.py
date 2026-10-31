@@ -377,6 +377,11 @@ class Doctor:
         )
         if variables.returncode == 0:
             values = {v["name"]: v.get("value", "") for v in json.loads(variables.stdout or "[]")}
+            if values.get("GARIMPO_ENABLED", "").strip() == "1":
+                self.add("github", "agendamento", "ok", "produção ligada (GARIMPO_ENABLED=1)")
+            else:
+                detail = "desligado: os horários são pulados até GARIMPO_ENABLED=1 (ligue com tudo ✅)"
+                self.add("github", "agendamento", "warn", detail, "13")
             if values.get("GARIMPO_REHEARSAL", "").strip().lower() in ("1", "true", "yes", "sim", "on"):
                 self.add("github", "modo ensaio", "warn", "GARIMPO_REHEARSAL ativo em produção", "13.1")
 

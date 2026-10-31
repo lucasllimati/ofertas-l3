@@ -5,7 +5,8 @@
 - nada de `pull_request_target`;
 - segredo nunca interpolado direto em `run:` (vai por `env:`);
 - nada de `secrets: inherit` (cada segredo é passado pelo nome);
-- workflow de produção (garimpo.yml) só roda depois do job `verify` (commit verde em ci e security).
+- workflow de produção (garimpo.yml) só roda depois do job `verify` (commit verde em ci e security);
+- e o agendamento dele só roda com a produção ligada (`vars.GARIMPO_ENABLED`).
 """
 
 from __future__ import annotations
@@ -47,6 +48,8 @@ def check_file(path: Path) -> list[str]:
         jobs = data.get("jobs") or {}
         if "verify" not in jobs:
             problems.append("workflow de produção sem o job verify (trava de ci/security)")
+        elif "vars.GARIMPO_ENABLED" not in str(jobs["verify"].get("if", "")):
+            problems.append("job verify sem a chave GARIMPO_ENABLED: agendamento rodaria sem a produção configurada")
         for job_name, job in jobs.items():
             needs = job.get("needs") or []
             needs = [needs] if isinstance(needs, str) else needs

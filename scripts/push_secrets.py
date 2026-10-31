@@ -10,7 +10,7 @@
 - Recusa a URL do DONO do banco e valores ainda iguais aos exemplos do .env.example.
 - Depois de enviar, preenche "Criado em" (e "Expira em", para credenciais com rotação de 90 dias)
   em docs/secrets.md.
-- GARIMPO_REHEARSAL vai como *variable* (não é segredo): `gh variable set`.
+- GARIMPO_ENABLED e GARIMPO_REHEARSAL vão como *variables* (não são segredo): `gh variable set`.
 """
 
 from __future__ import annotations
@@ -33,7 +33,7 @@ from src.common.envfile import parse_env  # noqa: E402
 from src.config.loader import load_config  # noqa: E402
 from src.doctor import BOT_TOKEN_RE  # noqa: E402
 
-VARIABLES = ("GARIMPO_REHEARSAL",)
+VARIABLES = ("GARIMPO_ENABLED", "GARIMPO_REHEARSAL")
 # Credenciais que devem ser trocadas a cada 90 dias (docs/SETUP.md §17); ids e URLs públicas não expiram.
 ROTATING = (
     "DATABASE_URL",

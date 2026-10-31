@@ -61,9 +61,9 @@ Passo a passo completo, com segurança e testes de cada etapa: **[docs/SETUP.md]
 2. **Supabase:** criar o projeto e rodar `uv run python scripts/bootstrap_db.py` (migrations, usuário `garimpo_pipeline` e `DATABASE_URL` no `.env`) (SETUP §5).
 3. **Ofertas:** Shopee Open API ou, enquanto ela não sai, `mode: off` e links colados em `config/offers/<nicho>.csv` (SETUP §6–8).
 4. **Secrets no GitHub:** preencha o `.env` e rode `uv run python scripts/push_secrets.py` (SETUP §12), incluindo `BACKUP_PASSPHRASE` e `HEARTBEAT_URL`.
-5. **Primeira execução:** `doctor` sem ❌; ligue o modo ensaio (`GARIMPO_REHEARSAL=1`) na primeira semana; Actions → **garimpo** → Run workflow → `healthcheck`, depois `daily` e `publish` (SETUP §13).
+5. **Primeira execução:** `doctor` sem ❌; ligue o modo ensaio (`GARIMPO_REHEARSAL=1`) na primeira semana; Actions → **garimpo** → Run workflow → `healthcheck`, depois `daily` e `publish`; por fim ligue os horários automáticos com a variável `GARIMPO_ENABLED=1` (SETUP §13).
 
-Depois disso roda sozinho (horário de Brasília):
+Com `GARIMPO_ENABLED=1`, roda sozinho (horário de Brasília):
 
 | Quando | O quê |
 |---|---|
